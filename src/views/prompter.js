@@ -170,17 +170,19 @@ export async function renderPrompter(root, { id }) {
     } else if (action === 'font-down') {
       adjustFontSize(-FONT_SIZE_STEP);
       showControls();
+    } else if (e.target.closest('[data-role="controls"]')) {
+      // tap внутри панели контролов, но не на кнопке — просто разбудить
+      showControls();
     } else {
-      // tap on background → toggle controls
-      if (section.classList.contains('prompter--idle')) {
-        showControls();
-      } else if (isPlaying) {
-        section.classList.add('prompter--idle');
-        if (controlsTimer) {
-          clearTimeout(controlsTimer);
-          controlsTimer = null;
-        }
+      // тап по тексту — определяем зону
+      const rect = section.getBoundingClientRect();
+      const ratio = (e.clientX - rect.left) / rect.width;
+      if (ratio < 0.25) {
+        adjustSpeed(-SPEED_STEP);
+      } else if (ratio > 0.75) {
+        adjustSpeed(SPEED_STEP);
       }
+      showControls();
     }
   });
 }
@@ -203,6 +205,9 @@ function renderTemplate(script, settings) {
         <div class="prompter__text" data-role="text">${escapeHtml(body) || '<span class="prompter__empty">пустой текст</span>'}</div>
         <div class="prompter__pad" data-role="pad-bottom"></div>
       </div>
+
+      <div class="prompter__zone-hint prompter__zone-hint--left" aria-hidden="true">−</div>
+      <div class="prompter__zone-hint prompter__zone-hint--right" aria-hidden="true">+</div>
 
       <div class="prompter__controls" data-role="controls">
         <button class="prompter__icon" data-action="exit" aria-label="выход">

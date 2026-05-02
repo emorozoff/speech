@@ -168,3 +168,36 @@
   font-weight: var(--fw-semibold);
   font-variant-numeric: tabular-nums;
 }
+
+.prompter__zone-hint {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--color-fg-faint);
+  font-size: 28px;
+  font-weight: var(--fw-medium);
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+  opacity: 1;
+  transition: opacity var(--duration-base) var(--ease);
+}
+
+.prompter__zone-hint--left {
+  left: var(--space-3);
+}
+
+.prompter__zone-hint--right {
+  right: var(--space-3);
+}
+
+.prompter--idle .prompter__zone-hint {
+  opacity: 0;
+}
