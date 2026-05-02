@@ -9,6 +9,7 @@ import { debounce } from '../lib/debounce.js';
 
 const SLIDERS = [
   { key: 'fontSize', label: 'размер шрифта', min: 24, max: 128, step: 1, unit: 'px' },
+  { key: 'textWidth', label: 'ширина текста', min: 40, max: 100, step: 5, unit: '%' },
   { key: 'speed', label: 'скорость', min: 1, max: 100, step: 1, unit: '' },
   { key: 'lineHeight', label: 'межстрочный', min: 1, max: 2.5, step: 0.1, unit: '' },
 ];
@@ -204,6 +205,7 @@ function renderToggle(spec, checked) {
 
 function formatValue(key, value) {
   if (key === 'fontSize') return `${value} px`;
+  if (key === 'textWidth') return `${value} %`;
   if (key === 'lineHeight') return value.toFixed(1);
   return String(value);
 }

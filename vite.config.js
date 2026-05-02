@@ -24,7 +24,7 @@ export default defineConfig({
         start_url: '/speech/',
         scope: '/speech/',
         display: 'standalone',
-        orientation: 'landscape',
+        orientation: 'any',
         theme_color: '#000000',
         background_color: '#000000',
         categories: ['productivity', 'utilities'],

@@ -1,4 +1,4 @@
-import { getScript, updateScript } from '../storage/scripts.js';
+import { getScript, updateScript, DEFAULT_SETTINGS } from '../storage/scripts.js';
 import { navigate } from '../lib/router.js';
 import { escapeHtml } from '../lib/format.js';
 import { debounce } from '../lib/debounce.js';
@@ -9,8 +9,6 @@ import { isSpeechSupported } from '../lib/recognition.js';
 import {
   enterFullscreen,
   exitFullscreen,
-  lockOrientation,
-  unlockOrientation,
   acquireWakeLock,
   releaseWakeLock,
 } from '../lib/screen.js';
@@ -30,7 +28,7 @@ export async function renderPrompter(root, { id }) {
     return;
   }
 
-  const settings = { ...script.settings };
+  const settings = { ...DEFAULT_SETTINGS, ...(script.settings ?? {}) };
   let isPlaying = false;
   let wakeLock = null;
   let controlsTimer = null;
@@ -92,7 +90,6 @@ export async function renderPrompter(root, { id }) {
     section.classList.add('prompter--playing');
     if (!wakeLock) {
       await enterFullscreen(section);
-      await lockOrientation('landscape');
       wakeLock = await acquireWakeLock();
     }
     engine.start();
@@ -258,7 +255,6 @@ export async function renderPrompter(root, { id }) {
       await releaseWakeLock(wakeLock);
       wakeLock = null;
     }
-    unlockOrientation();
     await exitFullscreen();
     await persistSettings.flush();
   };
@@ -332,6 +328,8 @@ export async function renderPrompter(root, { id }) {
 function applyTextSettings(textEl, settings) {
   textEl.style.fontSize = `${settings.fontSize}px`;
   textEl.style.lineHeight = String(settings.lineHeight);
+  const width = settings.textWidth ?? 90;
+  textEl.style.maxWidth = `${width}%`;
 }
 
 function applyVisualSettings(section, viewport, settings) {
@@ -407,7 +405,7 @@ function renderTemplate(script, settings) {
       <div class="prompter__zone-hint prompter__zone-hint--right" aria-hidden="true">+</div>
 
       <div class="prompter__controls" data-role="controls">
-        <div class="prompter__group">
+        <div class="prompter__group prompter__group--utility">
           <button class="prompter__icon" data-action="exit" aria-label="выход">
             ${ICON_CLOSE}
           </button>
@@ -431,7 +429,7 @@ function renderTemplate(script, settings) {
           >${ICON_MIC}</button>
         </div>
 
-        <div class="prompter__group">
+        <div class="prompter__group prompter__group--font">
           <button class="prompter__btn-text" data-action="font-down" aria-label="меньше шрифт">A−</button>
           <span class="prompter__readout">
             <span class="prompter__readout-label">шрифт</span>
@@ -450,7 +448,7 @@ function renderTemplate(script, settings) {
           </button>
         </div>
 
-        <div class="prompter__group">
+        <div class="prompter__group prompter__group--speed">
           <button class="prompter__icon" data-action="speed-down" aria-label="медленнее">
             ${ICON_MINUS}
           </button>

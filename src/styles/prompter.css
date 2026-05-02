@@ -60,7 +60,9 @@
   line-height: 1.5;
   font-weight: var(--fw-semibold);
   letter-spacing: -0.005em;
-  padding: 0 var(--space-8);
+  padding: 0 var(--space-3);
+  max-width: 90%;
+  margin: 0 auto;
   white-space: pre-wrap;
   word-wrap: break-word;
   user-select: none;
@@ -236,6 +238,39 @@
   font-size: var(--fs-md);
   font-weight: var(--fw-semibold);
   font-variant-numeric: tabular-nums;
+}
+
+@media (orientation: portrait) {
+  .prompter__controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "utility main"
+      "font speed";
+    align-items: center;
+    row-gap: var(--space-3);
+    column-gap: var(--space-2);
+  }
+
+  .prompter__group--utility {
+    grid-area: utility;
+    justify-self: start;
+  }
+
+  .prompter__group--font {
+    grid-area: font;
+    justify-self: start;
+  }
+
+  .prompter__group--main {
+    grid-area: main;
+    justify-self: end;
+  }
+
+  .prompter__group--speed {
+    grid-area: speed;
+    justify-self: end;
+  }
 }
 
 .prompter__zone-hint {
