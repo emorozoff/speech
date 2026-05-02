@@ -45,8 +45,12 @@ export async function renderPrompter(root, { id }) {
   const textEl = section.querySelector('[data-role="text"]');
   const speedReadout = section.querySelector('[data-readout="speed"]');
   const fontReadout = section.querySelector('[data-readout="fontSize"]');
+  const mirrorButton = section.querySelector('[data-action="toggle-mirror"]');
+  const lineButton = section.querySelector('[data-action="toggle-line"]');
 
   applyTextSettings(textEl, settings);
+  applyVisualSettings(section, viewport, settings);
+  syncToggleStates(mirrorButton, lineButton, settings);
   updatePadding();
 
   const engine = new ScrollEngine(viewport, settings.speed);
@@ -105,6 +109,20 @@ export async function renderPrompter(root, { id }) {
     settings.fontSize = clamp(settings.fontSize + delta, FONT_SIZE_MIN, FONT_SIZE_MAX);
     applyTextSettings(textEl, settings);
     fontReadout.textContent = String(settings.fontSize);
+    persistSettings();
+  };
+
+  const toggleMirror = () => {
+    settings.mirrorH = !settings.mirrorH;
+    applyVisualSettings(section, viewport, settings);
+    syncToggleStates(mirrorButton, lineButton, settings);
+    persistSettings();
+  };
+
+  const toggleReadingLine = () => {
+    settings.readingLine = !settings.readingLine;
+    applyVisualSettings(section, viewport, settings);
+    syncToggleStates(mirrorButton, lineButton, settings);
     persistSettings();
   };
 
@@ -170,6 +188,12 @@ export async function renderPrompter(root, { id }) {
     } else if (action === 'font-down') {
       adjustFontSize(-FONT_SIZE_STEP);
       showControls();
+    } else if (action === 'toggle-mirror') {
+      toggleMirror();
+      showControls();
+    } else if (action === 'toggle-line') {
+      toggleReadingLine();
+      showControls();
     } else if (e.target.closest('[data-role="controls"]')) {
       // tap внутри панели контролов, но не на кнопке — просто разбудить
       showControls();
@@ -192,6 +216,29 @@ function applyTextSettings(textEl, settings) {
   textEl.style.lineHeight = String(settings.lineHeight);
 }
 
+function applyVisualSettings(section, viewport, settings) {
+  viewport.classList.toggle('prompter__viewport--mirror-h', !!settings.mirrorH);
+  viewport.classList.toggle('prompter__viewport--mirror-v', !!settings.mirrorV);
+  section.classList.toggle('prompter--with-line', !!settings.readingLine);
+}
+
+function syncToggleStates(mirrorButton, lineButton, settings) {
+  if (mirrorButton) {
+    mirrorButton.classList.toggle('is-on', !!settings.mirrorH);
+    mirrorButton.setAttribute(
+      'aria-pressed',
+      settings.mirrorH ? 'true' : 'false',
+    );
+  }
+  if (lineButton) {
+    lineButton.classList.toggle('is-on', !!settings.readingLine);
+    lineButton.setAttribute(
+      'aria-pressed',
+      settings.readingLine ? 'true' : 'false',
+    );
+  }
+}
+
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
@@ -206,13 +253,33 @@ function renderTemplate(script, settings) {
         <div class="prompter__pad" data-role="pad-bottom"></div>
       </div>
 
+      <div class="prompter__reading-line" aria-hidden="true"></div>
+
       <div class="prompter__zone-hint prompter__zone-hint--left" aria-hidden="true">−</div>
       <div class="prompter__zone-hint prompter__zone-hint--right" aria-hidden="true">+</div>
 
       <div class="prompter__controls" data-role="controls">
-        <button class="prompter__icon" data-action="exit" aria-label="выход">
-          ${ICON_CLOSE}
-        </button>
+        <div class="prompter__group">
+          <button class="prompter__icon" data-action="exit" aria-label="выход">
+            ${ICON_CLOSE}
+          </button>
+          <button
+            class="prompter__icon"
+            data-action="toggle-mirror"
+            aria-label="зеркало"
+            aria-pressed="false"
+          >
+            ${ICON_MIRROR}
+          </button>
+          <button
+            class="prompter__icon"
+            data-action="toggle-line"
+            aria-label="линия чтения"
+            aria-pressed="false"
+          >
+            ${ICON_LINE}
+          </button>
+        </div>
 
         <div class="prompter__group">
           <button class="prompter__btn-text" data-action="font-down" aria-label="меньше шрифт">A−</button>
@@ -285,5 +352,20 @@ const ICON_MINUS = `
 const ICON_PLUS = `
   <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none">
     <path d="M5 12h14M12 5v14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+  </svg>
+`;
+
+const ICON_MIRROR = `
+  <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none">
+    <path d="M12 3v18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="2 2"/>
+    <path d="M9 7 4 12l5 5V7Z" fill="currentColor"/>
+    <path d="M15 7v10l5-5-5-5Z" fill="currentColor" opacity="0.5"/>
+  </svg>
+`;
+
+const ICON_LINE = `
+  <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none">
+    <path d="M3 12h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="12" cy="12" r="2.5" fill="currentColor"/>
   </svg>
 `;
