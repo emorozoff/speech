@@ -1,0 +1,20 @@
+.editor-stub {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.editor-stub__body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+}
+
+.editor-stub__hint {
+  margin: 0;
+  color: var(--color-fg-faint);
+  font-size: var(--fs-sm);
+  text-align: center;
+}

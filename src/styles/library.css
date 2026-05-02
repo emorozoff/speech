@@ -1,0 +1,162 @@
+.library {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.library__list {
+  margin: 0;
+  padding: var(--space-3) var(--space-4) calc(var(--space-8) + var(--safe-bottom));
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  flex: 1;
+}
+
+.card {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: background var(--duration-fast) var(--ease);
+}
+
+.card:active {
+  background: var(--color-surface-2);
+}
+
+.card__main {
+  flex: 1;
+  text-align: left;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  min-height: var(--tap-target-min);
+}
+
+.card__title {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card__title--placeholder {
+  color: var(--color-fg-dim);
+  font-weight: var(--fw-regular);
+  font-style: italic;
+}
+
+.card__preview {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--color-fg-dim);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.card__preview--placeholder {
+  color: var(--color-fg-faint);
+  font-style: italic;
+}
+
+.card__meta {
+  margin-top: var(--space-1);
+  font-size: var(--fs-xs);
+  color: var(--color-fg-faint);
+  letter-spacing: 0.02em;
+}
+
+.card__menu-button {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap-target-min);
+  align-self: stretch;
+  color: var(--color-fg-dim);
+  border-left: 1px solid var(--color-border);
+  transition: background var(--duration-fast) var(--ease),
+    color var(--duration-fast) var(--ease);
+}
+
+.card__menu-button:active {
+  background: var(--color-surface-2);
+  color: var(--color-fg);
+}
+
+.empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  text-align: center;
+}
+
+.empty__dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 24px var(--color-accent-soft);
+  margin-bottom: var(--space-3);
+}
+
+.empty__title {
+  margin: 0;
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.02em;
+  text-transform: lowercase;
+}
+
+.empty__subtitle {
+  margin: 0 0 var(--space-5);
+  color: var(--color-fg-dim);
+  font-size: var(--fs-md);
+}
+
+.button {
+  min-height: var(--tap-target-min);
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+  letter-spacing: 0.01em;
+  transition: background var(--duration-fast) var(--ease),
+    color var(--duration-fast) var(--ease),
+    transform var(--duration-fast) var(--ease);
+}
+
+.button:active {
+  transform: scale(0.97);
+}
+
+.button--primary {
+  background: var(--color-accent);
+  color: var(--color-bg);
+}
+
+.button--primary:active {
+  background: #ffa800;
+}
