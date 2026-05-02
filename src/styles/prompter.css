@@ -73,6 +73,15 @@
   font-weight: var(--fw-regular);
 }
 
+.prompter__word {
+  display: inline;
+  transition: color var(--duration-fast) var(--ease);
+}
+
+.prompter__word--current {
+  color: var(--color-accent);
+}
+
 .prompter__controls {
   position: absolute;
   left: 0;
@@ -148,6 +157,24 @@
 .prompter__icon.is-on:active,
 .prompter__btn-text.is-on:active {
   background: rgba(255, 184, 0, 0.28);
+}
+
+.prompter__icon[disabled] {
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+.prompter__icon.is-listening {
+  animation: prompter-pulse 1.4s var(--ease) infinite;
+}
+
+@keyframes prompter-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 var(--color-accent-soft);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(255, 184, 0, 0);
+  }
 }
 
 .prompter__play {

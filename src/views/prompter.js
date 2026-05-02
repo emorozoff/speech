@@ -3,6 +3,9 @@ import { navigate } from '../lib/router.js';
 import { escapeHtml } from '../lib/format.js';
 import { debounce } from '../lib/debounce.js';
 import { ScrollEngine } from '../lib/prompter-engine.js';
+import { SmoothScroller } from '../lib/smooth-scroll.js';
+import { VoiceFollower } from '../lib/voice-follower.js';
+import { isSpeechSupported } from '../lib/recognition.js';
 import {
   enterFullscreen,
   exitFullscreen,
@@ -32,6 +35,9 @@ export async function renderPrompter(root, { id }) {
   let wakeLock = null;
   let controlsTimer = null;
   let cleaned = false;
+  let voice = null;
+  let currentWordIdx = 0;
+  let currentWordEl = null;
 
   const persistSettings = debounce(async () => {
     await updateScript(id, { settings });
@@ -47,14 +53,22 @@ export async function renderPrompter(root, { id }) {
   const fontReadout = section.querySelector('[data-readout="fontSize"]');
   const mirrorButton = section.querySelector('[data-action="toggle-mirror"]');
   const lineButton = section.querySelector('[data-action="toggle-line"]');
+  const voiceButton = section.querySelector('[data-action="toggle-voice"]');
+  const wordElements = textEl.querySelectorAll('.prompter__word');
 
   applyTextSettings(textEl, settings);
   applyVisualSettings(section, viewport, settings);
-  syncToggleStates(mirrorButton, lineButton, settings);
+  syncToggleStates({ mirrorButton, lineButton, voiceButton, settings });
   updatePadding();
+
+  if (!isSpeechSupported() && voiceButton) {
+    voiceButton.setAttribute('disabled', 'true');
+    voiceButton.title = 'распознавание речи не поддерживается';
+  }
 
   const engine = new ScrollEngine(viewport, settings.speed);
   engine.onEnd = () => pause();
+  const scroller = new SmoothScroller(viewport);
 
   const showControls = () => {
     section.classList.remove('prompter--idle');
@@ -62,7 +76,7 @@ export async function renderPrompter(root, { id }) {
       clearTimeout(controlsTimer);
       controlsTimer = null;
     }
-    if (isPlaying) {
+    if (isPlaying || (voice && settings.voiceFollow)) {
       controlsTimer = setTimeout(() => {
         section.classList.add('prompter--idle');
       }, CONTROLS_HIDE_AFTER_MS);
@@ -70,6 +84,10 @@ export async function renderPrompter(root, { id }) {
   };
 
   const play = async () => {
+    if (settings.voiceFollow) {
+      // в режиме голоса play не нужен — голос ведёт
+      return;
+    }
     isPlaying = true;
     section.classList.add('prompter--playing');
     if (!wakeLock) {
@@ -94,7 +112,13 @@ export async function renderPrompter(root, { id }) {
   };
 
   const reset = () => {
-    engine.reset();
+    engine.stop();
+    scroller.cancel();
+    isPlaying = false;
+    section.classList.remove('prompter--playing');
+    viewport.scrollTop = 0;
+    setCurrentWord(0);
+    if (voice) voice.setCursor(0);
     showControls();
   };
 
@@ -106,31 +130,127 @@ export async function renderPrompter(root, { id }) {
   };
 
   const adjustFontSize = (delta) => {
-    settings.fontSize = clamp(settings.fontSize + delta, FONT_SIZE_MIN, FONT_SIZE_MAX);
+    settings.fontSize = clamp(
+      settings.fontSize + delta,
+      FONT_SIZE_MIN,
+      FONT_SIZE_MAX,
+    );
     applyTextSettings(textEl, settings);
     fontReadout.textContent = String(settings.fontSize);
+    updatePadding();
+    if (currentWordEl) {
+      // удерживаем подсвеченное слово на линии чтения после изменения размера
+      requestAnimationFrame(() => scrollToWord(currentWordIdx, 0));
+    }
     persistSettings();
   };
 
   const toggleMirror = () => {
     settings.mirrorH = !settings.mirrorH;
     applyVisualSettings(section, viewport, settings);
-    syncToggleStates(mirrorButton, lineButton, settings);
+    syncToggleStates({ mirrorButton, lineButton, voiceButton, settings });
     persistSettings();
   };
 
   const toggleReadingLine = () => {
     settings.readingLine = !settings.readingLine;
     applyVisualSettings(section, viewport, settings);
-    syncToggleStates(mirrorButton, lineButton, settings);
+    syncToggleStates({ mirrorButton, lineButton, voiceButton, settings });
     persistSettings();
   };
+
+  const enableVoice = () => {
+    if (!isSpeechSupported()) {
+      window.alert('Распознавание речи не поддерживается этим браузером');
+      settings.voiceFollow = false;
+      syncToggleStates({ mirrorButton, lineButton, voiceButton, settings });
+      return;
+    }
+    if (isPlaying) pause();
+
+    voice = new VoiceFollower({
+      scriptBody: script.body || '',
+      onPosition: (idx) => {
+        currentWordIdx = idx;
+        setCurrentWord(idx);
+        scrollToWord(idx);
+      },
+      onStateChange: (state) => {
+        if (voiceButton) {
+          voiceButton.classList.toggle('is-listening', state === 'listening');
+        }
+      },
+      onError: (msg) => {
+        settings.voiceFollow = false;
+        if (voice) {
+          voice.stop();
+          voice = null;
+        }
+        syncToggleStates({ mirrorButton, lineButton, voiceButton, settings });
+        persistSettings();
+        window.alert(`Голосовое следование: ${msg}`);
+      },
+    });
+    voice.setCursor(currentWordIdx);
+    voice.start();
+  };
+
+  const disableVoice = () => {
+    if (voice) {
+      voice.stop();
+      voice = null;
+    }
+    if (voiceButton) voiceButton.classList.remove('is-listening');
+    clearCurrentWord();
+  };
+
+  const toggleVoice = () => {
+    settings.voiceFollow = !settings.voiceFollow;
+    if (settings.voiceFollow) enableVoice();
+    else disableVoice();
+    syncToggleStates({ mirrorButton, lineButton, voiceButton, settings });
+    persistSettings();
+  };
+
+  function setCurrentWord(idx) {
+    if (currentWordEl) currentWordEl.classList.remove('prompter__word--current');
+    const next = wordElements[idx];
+    if (next) {
+      next.classList.add('prompter__word--current');
+      currentWordEl = next;
+    } else {
+      currentWordEl = null;
+    }
+  }
+
+  function clearCurrentWord() {
+    if (currentWordEl) currentWordEl.classList.remove('prompter__word--current');
+    currentWordEl = null;
+  }
+
+  function scrollToWord(idx, durationMs = 250) {
+    const word = wordElements[idx];
+    if (!word) return;
+    const wordRect = word.getBoundingClientRect();
+    const viewportRect = viewport.getBoundingClientRect();
+    const wordCenter =
+      viewport.scrollTop +
+      (wordRect.top - viewportRect.top) +
+      wordRect.height / 2;
+    const target = wordCenter - viewport.clientHeight / 2;
+    scroller.scrollTo(target, durationMs);
+  }
 
   const cleanup = async () => {
     if (cleaned) return;
     cleaned = true;
     isPlaying = false;
     engine.stop();
+    scroller.cancel();
+    if (voice) {
+      voice.stop();
+      voice = null;
+    }
     if (controlsTimer) clearTimeout(controlsTimer);
     window.removeEventListener('resize', updatePadding);
     document.removeEventListener('visibilitychange', onVisibility);
@@ -157,16 +277,13 @@ export async function renderPrompter(root, { id }) {
   }
 
   async function onVisibility() {
-    if (document.hidden) {
-      if (isPlaying) pause();
-    } else if (wakeLock === null) {
-      // wake lock auto-released when tab hidden — re-acquire if we're back
-      // (only matters if user re-plays manually, no-op here)
-    }
+    if (document.hidden && isPlaying) pause();
   }
 
   window.addEventListener('resize', updatePadding);
   document.addEventListener('visibilitychange', onVisibility);
+
+  if (settings.voiceFollow) enableVoice();
 
   section.addEventListener('click', async (e) => {
     const action = e.target.closest('[data-action]')?.dataset.action;
@@ -194,11 +311,12 @@ export async function renderPrompter(root, { id }) {
     } else if (action === 'toggle-line') {
       toggleReadingLine();
       showControls();
+    } else if (action === 'toggle-voice') {
+      toggleVoice();
+      showControls();
     } else if (e.target.closest('[data-role="controls"]')) {
-      // tap внутри панели контролов, но не на кнопке — просто разбудить
       showControls();
     } else {
-      // тап по тексту — определяем зону
       const rect = section.getBoundingClientRect();
       const ratio = (e.clientX - rect.left) / rect.width;
       if (ratio < 0.25) {
@@ -222,7 +340,7 @@ function applyVisualSettings(section, viewport, settings) {
   section.classList.toggle('prompter--with-line', !!settings.readingLine);
 }
 
-function syncToggleStates(mirrorButton, lineButton, settings) {
+function syncToggleStates({ mirrorButton, lineButton, voiceButton, settings }) {
   if (mirrorButton) {
     mirrorButton.classList.toggle('is-on', !!settings.mirrorH);
     mirrorButton.setAttribute(
@@ -237,10 +355,40 @@ function syncToggleStates(mirrorButton, lineButton, settings) {
       settings.readingLine ? 'true' : 'false',
     );
   }
+  if (voiceButton) {
+    voiceButton.classList.toggle('is-on', !!settings.voiceFollow);
+    voiceButton.setAttribute(
+      'aria-pressed',
+      settings.voiceFollow ? 'true' : 'false',
+    );
+  }
 }
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
+}
+
+function renderBodyWithWords(body) {
+  if (!body) return '<span class="prompter__empty">пустой текст</span>';
+  const re = /[\p{L}\p{N}]+/gu;
+  const out = [];
+  let last = 0;
+  let i = 0;
+  let m;
+  while ((m = re.exec(body)) !== null) {
+    if (m.index > last) {
+      out.push(escapeHtml(body.slice(last, m.index)));
+    }
+    out.push(
+      `<span class="prompter__word" data-i="${i}">${escapeHtml(m[0])}</span>`,
+    );
+    i++;
+    last = m.index + m[0].length;
+  }
+  if (last < body.length) {
+    out.push(escapeHtml(body.slice(last)));
+  }
+  return out.join('');
 }
 
 function renderTemplate(script, settings) {
@@ -249,7 +397,7 @@ function renderTemplate(script, settings) {
     <section class="prompter">
       <div class="prompter__viewport" data-role="viewport">
         <div class="prompter__pad" data-role="pad-top"></div>
-        <div class="prompter__text" data-role="text">${escapeHtml(body) || '<span class="prompter__empty">пустой текст</span>'}</div>
+        <div class="prompter__text" data-role="text">${renderBodyWithWords(body)}</div>
         <div class="prompter__pad" data-role="pad-bottom"></div>
       </div>
 
@@ -268,17 +416,19 @@ function renderTemplate(script, settings) {
             data-action="toggle-mirror"
             aria-label="зеркало"
             aria-pressed="false"
-          >
-            ${ICON_MIRROR}
-          </button>
+          >${ICON_MIRROR}</button>
           <button
             class="prompter__icon"
             data-action="toggle-line"
             aria-label="линия чтения"
             aria-pressed="false"
-          >
-            ${ICON_LINE}
-          </button>
+          >${ICON_LINE}</button>
+          <button
+            class="prompter__icon"
+            data-action="toggle-voice"
+            aria-label="голосовое следование"
+            aria-pressed="false"
+          >${ICON_MIC}</button>
         </div>
 
         <div class="prompter__group">
@@ -367,5 +517,13 @@ const ICON_LINE = `
   <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none">
     <path d="M3 12h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
     <circle cx="12" cy="12" r="2.5" fill="currentColor"/>
+  </svg>
+`;
+
+const ICON_MIC = `
+  <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none">
+    <rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/>
+    <path d="M5 11a7 7 0 0 0 14 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    <path d="M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
   </svg>
 `;
