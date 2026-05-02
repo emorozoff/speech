@@ -37,6 +37,14 @@ npm run build
 npm run preview
 ```
 
+## Тесты
+
+Юнит-тесты на встроенном `node:test` + `fake-indexeddb`:
+
+```bash
+npm test
+```
+
 ## Установка на iPhone
 
 После деплоя:

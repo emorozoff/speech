@@ -44,3 +44,12 @@
   color: var(--color-fg-faint);
   font-size: var(--fs-sm);
 }
+
+.intro__hint strong {
+  color: var(--color-accent);
+  font-weight: var(--fw-semibold);
+}
+
+.intro__error {
+  color: var(--color-danger);
+}
