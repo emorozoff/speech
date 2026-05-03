@@ -75,6 +75,23 @@ export async function restoreScript(script) {
   return script;
 }
 
+export async function importScript(data) {
+  if (!data || typeof data !== 'object') {
+    throw new Error('importScript requires an object');
+  }
+  const now = Date.now();
+  const script = {
+    id: uid(),
+    title: typeof data.title === 'string' ? data.title : '',
+    body: typeof data.body === 'string' ? data.body : '',
+    settings: normalizeSettings(data.settings),
+    createdAt: typeof data.createdAt === 'number' ? data.createdAt : now,
+    updatedAt: now,
+  };
+  await dbPut(STORE_SCRIPTS, script);
+  return script;
+}
+
 export async function duplicateScript(id) {
   const original = await getScript(id);
   if (!original) throw new Error(`Script ${id} not found`);

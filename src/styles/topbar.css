@@ -48,7 +48,8 @@
 }
 
 .topbar__add,
-.topbar__back {
+.topbar__back,
+.topbar__more {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -66,7 +67,13 @@
   color: var(--color-accent);
 }
 
+.topbar__more {
+  color: var(--color-fg-dim);
+}
+
 .topbar__add:active,
-.topbar__back:active {
+.topbar__back:active,
+.topbar__more:active {
   background: var(--color-surface-2);
+  color: var(--color-fg);
 }

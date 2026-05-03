@@ -21,8 +21,23 @@ import {
   wordsLabel,
 } from '../lib/format.js';
 import { APP_VERSION_DISPLAY } from '../lib/version.js';
+import {
+  downloadBackup,
+  parseBackup,
+  importLibrary,
+} from '../lib/backup.js';
 
 let openMenu = null;
+
+const CARD_MENU_ITEMS = [
+  { action: 'duplicate', label: 'Дублировать' },
+  { action: 'delete', label: 'Удалить', danger: true },
+];
+
+const TOPBAR_MENU_ITEMS = [
+  { action: 'export', label: 'Экспорт' },
+  { action: 'import', label: 'Импорт' },
+];
 
 export async function renderLibrary(root) {
   closeMenu();
@@ -62,12 +77,26 @@ export async function renderLibrary(root) {
     } else if (action === 'menu') {
       e.preventDefault();
       e.stopPropagation();
-      toggleMenu(target, id, async (chosen) => {
+      toggleMenu(target, id, CARD_MENU_ITEMS, async (chosen) => {
         if (chosen === 'duplicate') {
           await duplicateScript(id);
           await renderLibrary(root);
         } else if (chosen === 'delete') {
           await handleDelete(id, root);
+        }
+      });
+    } else if (action === 'more') {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleMenu(target, 'topbar', TOPBAR_MENU_ITEMS, async (chosen) => {
+        if (chosen === 'export') {
+          try {
+            await downloadBackup();
+          } catch (err) {
+            showInfoToast(root, errorMessage(err), 'error');
+          }
+        } else if (chosen === 'import') {
+          triggerImport(root);
         }
       });
     }
@@ -82,6 +111,11 @@ function renderEmpty(profile) {
           speech
           <span class="topbar__version">${APP_VERSION_DISPLAY}</span>
         </h1>
+        <button
+          class="topbar__more"
+          data-action="more"
+          aria-label="меню библиотеки"
+        >${ICON_DOTS}</button>
       </header>
       ${renderProfileBanner(profile)}
       <div class="empty">
@@ -102,6 +136,11 @@ function renderList(scripts, profile, wpm) {
           speech
           <span class="topbar__version">${APP_VERSION_DISPLAY}</span>
         </h1>
+        <button
+          class="topbar__more"
+          data-action="more"
+          aria-label="меню библиотеки"
+        >${ICON_DOTS}</button>
         <button
           class="topbar__add"
           data-action="new"
@@ -163,7 +202,7 @@ function renderCard(script, wpm) {
   `;
 }
 
-function toggleMenu(button, id, onAction) {
+function toggleMenu(button, id, items, onAction) {
   if (openMenu && openMenu.dataset.for === id) {
     closeMenu();
     return;
@@ -173,10 +212,16 @@ function toggleMenu(button, id, onAction) {
   const menu = document.createElement('div');
   menu.className = 'menu';
   menu.dataset.for = id;
-  menu.innerHTML = `
-    <button class="menu__item" data-action="duplicate">Дублировать</button>
-    <button class="menu__item menu__item--danger" data-action="delete">Удалить</button>
-  `;
+  menu.innerHTML = items
+    .map(
+      (it) => `
+        <button
+          class="menu__item ${it.danger ? 'menu__item--danger' : ''}"
+          data-action="${escapeHtml(it.action)}"
+        >${escapeHtml(it.label)}</button>
+      `,
+    )
+    .join('');
 
   menu.addEventListener('click', (e) => {
     const item = e.target.closest('[data-action]');
@@ -277,6 +322,77 @@ function showUndoToast(root, script) {
 
   timeoutId = setTimeout(dismiss, 5000);
 }
+
+function triggerImport(root) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'application/json,.json';
+  input.style.display = 'none';
+  document.body.appendChild(input);
+
+  const cleanup = () => {
+    if (input.parentNode) input.remove();
+  };
+
+  input.addEventListener('change', async () => {
+    const file = input.files?.[0];
+    cleanup();
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = parseBackup(text);
+      const result = await importLibrary(parsed);
+      await renderLibrary(root);
+      const parts = [];
+      if (result.importedScripts > 0) {
+        parts.push(`импортировано: ${result.importedScripts}`);
+      }
+      if (result.importedProfile) {
+        parts.push('калибровка');
+      }
+      const message = parts.length > 0
+        ? parts.join(' · ')
+        : 'нечего импортировать';
+      showInfoToast(root, message);
+    } catch (err) {
+      showInfoToast(root, errorMessage(err), 'error');
+    }
+  });
+
+  input.addEventListener('cancel', cleanup);
+
+  input.click();
+}
+
+function showInfoToast(root, text, variant = 'success') {
+  document
+    .querySelectorAll('.library__undo-toast, .library__info-toast')
+    .forEach((el) => el.remove());
+  const section = root.firstElementChild;
+  if (!section) return;
+  const toast = document.createElement('div');
+  toast.className = `library__info-toast library__info-toast--${variant}`;
+  toast.textContent = text;
+  section.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('is-visible'));
+  setTimeout(() => {
+    toast.classList.remove('is-visible');
+    setTimeout(() => toast.remove(), 240);
+  }, 3000);
+}
+
+function errorMessage(err) {
+  if (!err) return 'неизвестная ошибка';
+  return typeof err.message === 'string' ? err.message : String(err);
+}
+
+const ICON_DOTS = `
+  <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+    <circle cx="12" cy="5" r="2" fill="currentColor"/>
+    <circle cx="12" cy="12" r="2" fill="currentColor"/>
+    <circle cx="12" cy="19" r="2" fill="currentColor"/>
+  </svg>
+`;
 
 const ICON_TRASH = `
   <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none">
