@@ -1,6 +1,7 @@
 const DB_NAME = 'speech';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 export const STORE_SCRIPTS = 'scripts';
+export const STORE_PROFILE = 'profile';
 
 let dbPromise = null;
 
@@ -10,9 +11,17 @@ function openDb() {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = (event) => {
       const db = event.target.result;
-      if (!db.objectStoreNames.contains(STORE_SCRIPTS)) {
-        const store = db.createObjectStore(STORE_SCRIPTS, { keyPath: 'id' });
-        store.createIndex('updatedAt', 'updatedAt');
+      const oldVersion = event.oldVersion;
+      if (oldVersion < 1) {
+        if (!db.objectStoreNames.contains(STORE_SCRIPTS)) {
+          const store = db.createObjectStore(STORE_SCRIPTS, { keyPath: 'id' });
+          store.createIndex('updatedAt', 'updatedAt');
+        }
+      }
+      if (oldVersion < 2) {
+        if (!db.objectStoreNames.contains(STORE_PROFILE)) {
+          db.createObjectStore(STORE_PROFILE, { keyPath: 'id' });
+        }
       }
     };
     req.onsuccess = () => resolve(req.result);

@@ -4,6 +4,12 @@ import {
   deleteScript,
   duplicateScript,
 } from '../storage/scripts.js';
+import {
+  getProfile,
+  estimateReadingSeconds,
+  formatReadingTime,
+  DEFAULT_WPM,
+} from '../storage/profile.js';
 import { navigate } from '../lib/router.js';
 import {
   escapeHtml,
@@ -20,14 +26,18 @@ export async function renderLibrary(root) {
   closeMenu();
 
   let scripts;
+  let profile;
   try {
-    scripts = await listScripts();
+    [scripts, profile] = await Promise.all([listScripts(), getProfile()]);
   } catch (err) {
     root.innerHTML = `<p class="error">Ошибка хранилища: ${escapeHtml(err.message ?? err)}</p>`;
     return;
   }
 
-  root.innerHTML = scripts.length === 0 ? renderEmpty() : renderList(scripts);
+  const wpm = profile?.wpm ?? DEFAULT_WPM;
+  root.innerHTML = scripts.length === 0
+    ? renderEmpty(profile)
+    : renderList(scripts, profile, wpm);
   const section = root.firstElementChild;
 
   section.addEventListener('click', async (e) => {
@@ -37,7 +47,10 @@ export async function renderLibrary(root) {
     const action = target.dataset.action;
     const id = target.dataset.id;
 
-    if (action === 'new') {
+    if (action === 'calibrate') {
+      e.preventDefault();
+      navigate('/calibrate');
+    } else if (action === 'new') {
       e.preventDefault();
       const created = await createScript();
       navigate(`/editor/${created.id}`);
@@ -62,7 +75,7 @@ export async function renderLibrary(root) {
   });
 }
 
-function renderEmpty() {
+function renderEmpty(profile) {
   return `
     <section class="library library--empty">
       <header class="topbar">
@@ -71,6 +84,7 @@ function renderEmpty() {
           <span class="topbar__version">${APP_VERSION_DISPLAY}</span>
         </h1>
       </header>
+      ${renderProfileBanner(profile)}
       <div class="empty">
         <span class="empty__dot" aria-hidden="true"></span>
         <h2 class="empty__title">пусто</h2>
@@ -81,7 +95,7 @@ function renderEmpty() {
   `;
 }
 
-function renderList(scripts) {
+function renderList(scripts, profile, wpm) {
   return `
     <section class="library">
       <header class="topbar">
@@ -95,14 +109,27 @@ function renderList(scripts) {
           aria-label="новый скрипт"
         >+</button>
       </header>
+      ${renderProfileBanner(profile)}
       <ul class="library__list" role="list">
-        ${scripts.map(renderCard).join('')}
+        ${scripts.map((s) => renderCard(s, wpm)).join('')}
       </ul>
     </section>
   `;
 }
 
-function renderCard(script) {
+function renderProfileBanner(profile) {
+  const text = profile
+    ? `скорость <strong>${profile.wpm} wpm</strong> · обновить`
+    : `скорость не задана (160 wpm) · откалибровать`;
+  return `
+    <button class="library__profile" data-action="calibrate" type="button">
+      <span class="library__profile-icon" aria-hidden="true">${ICON_BOLT}</span>
+      <span class="library__profile-text">${text}</span>
+    </button>
+  `;
+}
+
+function renderCard(script, wpm) {
   const hasTitle = !!script.title?.trim();
   const hasBody = !!script.body?.trim();
   const title = hasTitle ? script.title.trim() : 'без названия';
@@ -110,6 +137,8 @@ function renderCard(script) {
   const date = formatRelative(script.updatedAt);
   const wc = wordCount(script.body);
   const wcLabel = `${wc} ${wordsLabel(wc)}`;
+  const readingSec = estimateReadingSeconds(wc, wpm);
+  const readingLabel = readingSec > 0 ? ` · ≈ ${formatReadingTime(readingSec)}` : '';
   const id = escapeHtml(script.id);
 
   return `
@@ -117,7 +146,7 @@ function renderCard(script) {
       <button class="card__main" data-action="open" data-id="${id}">
         <h2 class="card__title ${hasTitle ? '' : 'card__title--placeholder'}">${escapeHtml(title)}</h2>
         <p class="card__preview ${hasBody ? '' : 'card__preview--placeholder'}">${escapeHtml(preview)}</p>
-        <span class="card__meta">${escapeHtml(date)} · ${escapeHtml(wcLabel)}</span>
+        <span class="card__meta">${escapeHtml(date)} · ${escapeHtml(wcLabel)}${escapeHtml(readingLabel)}</span>
       </button>
       <button
         class="card__menu-button"
@@ -193,3 +222,9 @@ function closeMenu() {
   openMenu.remove();
   openMenu = null;
 }
+
+const ICON_BOLT = `
+  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="currentColor">
+    <path d="M13 2 3 14h6l-1 8 10-12h-6l1-8Z"/>
+  </svg>
+`;
