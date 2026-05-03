@@ -179,6 +179,34 @@
   }
 }
 
+.prompter__command-toast {
+  position: absolute;
+  top: calc(var(--safe-top) + var(--space-5));
+  left: 50%;
+  transform: translate(-50%, -8px);
+  padding: var(--space-3) var(--space-5);
+  background: var(--color-accent);
+  color: var(--color-bg);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.01em;
+  border-radius: var(--radius-pill);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 10;
+  transition:
+    opacity 200ms var(--ease),
+    transform 200ms var(--ease);
+  text-transform: lowercase;
+  font-variant-numeric: tabular-nums;
+}
+
+.prompter__command-toast.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
 .prompter__play {
   width: 56px;
   height: 56px;

@@ -82,25 +82,38 @@ export async function renderPrompter(root, { id }) {
     }
   };
 
-  const play = async () => {
-    if (settings.voiceFollow) {
-      // в режиме голоса play не нужен — голос ведёт
-      return;
-    }
-    isPlaying = true;
-    section.classList.add('prompter--playing');
-    if (!wakeLock) {
+  const acquireScreenLocks = async () => {
+    if (wakeLock) return;
+    try {
       await enterFullscreen(section);
       wakeLock = await acquireWakeLock();
+    } catch {
+      /* may fail if not in a user gesture (e.g. voice command) */
     }
-    engine.start();
+  };
+
+  const play = async () => {
+    if (isPlaying) return;
+    isPlaying = true;
+    section.classList.add('prompter--playing');
+    await acquireScreenLocks();
+    if (settings.voiceFollow && voice) {
+      voice.resume();
+    } else {
+      engine.start();
+    }
     showControls();
   };
 
   const pause = () => {
+    if (!isPlaying) return;
     isPlaying = false;
     section.classList.remove('prompter--playing');
-    engine.stop();
+    if (settings.voiceFollow && voice) {
+      voice.pause();
+    } else {
+      engine.stop();
+    }
     showControls();
   };
 
@@ -115,9 +128,21 @@ export async function renderPrompter(root, { id }) {
     isPlaying = false;
     section.classList.remove('prompter--playing');
     viewport.scrollTop = 0;
+    currentWordIdx = 0;
     setCurrentWord(0);
-    if (voice) voice.setCursor(0);
+    if (voice) {
+      voice.setCursor(0);
+      voice.pause();
+    }
     showControls();
+  };
+
+  const rewind = (n) => {
+    const next = Math.max(0, currentWordIdx - n);
+    currentWordIdx = next;
+    setCurrentWord(next);
+    scrollToWord(next, 350);
+    if (voice) voice.setCursor(next);
   };
 
   const adjustSpeed = (delta) => {
@@ -157,14 +182,17 @@ export async function renderPrompter(root, { id }) {
     persistSettings();
   };
 
-  const enableVoice = () => {
+  const enableVoice = async () => {
     if (!isSpeechSupported()) {
       window.alert('Распознавание речи не поддерживается этим браузером');
       settings.voiceFollow = false;
       syncToggleStates({ mirrorButton, lineButton, voiceButton, settings });
       return;
     }
-    if (isPlaying) pause();
+
+    // engine off in voice mode
+    engine.stop();
+    await acquireScreenLocks();
 
     voice = new VoiceFollower({
       scriptBody: script.body || '',
@@ -173,6 +201,7 @@ export async function renderPrompter(root, { id }) {
         setCurrentWord(idx);
         scrollToWord(idx);
       },
+      onCommand: (cmd) => handleCommand(cmd),
       onStateChange: (state) => {
         if (voiceButton) {
           voiceButton.classList.toggle('is-listening', state === 'listening');
@@ -184,27 +213,75 @@ export async function renderPrompter(root, { id }) {
           voice.stop();
           voice = null;
         }
+        isPlaying = false;
+        section.classList.remove('prompter--playing');
         syncToggleStates({ mirrorButton, lineButton, voiceButton, settings });
         persistSettings();
-        window.alert(`Голосовое следование: ${msg}`);
+        window.alert(`Голосовое управление: ${msg}`);
       },
     });
     voice.setCursor(currentWordIdx);
     voice.start();
+    isPlaying = true;
+    section.classList.add('prompter--playing');
   };
+
+  const handleCommand = (cmd) => {
+    showCommandToast(cmd.label);
+    switch (cmd.action) {
+      case 'pause':
+        pause();
+        break;
+      case 'play':
+        play();
+        break;
+      case 'reset':
+        reset();
+        break;
+      case 'speedUp':
+        adjustSpeed(SPEED_STEP);
+        break;
+      case 'speedDown':
+        adjustSpeed(-SPEED_STEP);
+        break;
+      case 'fontUp':
+        adjustFontSize(FONT_SIZE_STEP);
+        break;
+      case 'fontDown':
+        adjustFontSize(-FONT_SIZE_STEP);
+        break;
+      case 'rewind':
+        rewind(cmd.amount);
+        break;
+    }
+    showControls();
+  };
+
+  function showCommandToast(label) {
+    const toast = section.querySelector('[data-role="command-toast"]');
+    if (!toast) return;
+    toast.textContent = label;
+    toast.classList.add('is-visible');
+    if (showCommandToast._timer) clearTimeout(showCommandToast._timer);
+    showCommandToast._timer = setTimeout(() => {
+      toast.classList.remove('is-visible');
+    }, 1200);
+  }
 
   const disableVoice = () => {
     if (voice) {
       voice.stop();
       voice = null;
     }
+    isPlaying = false;
+    section.classList.remove('prompter--playing');
     if (voiceButton) voiceButton.classList.remove('is-listening');
     clearCurrentWord();
   };
 
-  const toggleVoice = () => {
+  const toggleVoice = async () => {
     settings.voiceFollow = !settings.voiceFollow;
-    if (settings.voiceFollow) enableVoice();
+    if (settings.voiceFollow) await enableVoice();
     else disableVoice();
     syncToggleStates({ mirrorButton, lineButton, voiceButton, settings });
     persistSettings();
@@ -280,7 +357,8 @@ export async function renderPrompter(root, { id }) {
   window.addEventListener('resize', updatePadding);
   document.addEventListener('visibilitychange', onVisibility);
 
-  if (settings.voiceFollow) enableVoice();
+  // settings.voiceFollow auto-enable удалено: микрофон требует
+  // явного user gesture, иначе iOS может молча отказать.
 
   section.addEventListener('click', async (e) => {
     const action = e.target.closest('[data-action]')?.dataset.action;
@@ -405,6 +483,8 @@ function renderTemplate(script, settings) {
 
       <div class="prompter__zone-hint prompter__zone-hint--left" aria-hidden="true">−</div>
       <div class="prompter__zone-hint prompter__zone-hint--right" aria-hidden="true">+</div>
+
+      <div class="prompter__command-toast" data-role="command-toast" role="status" aria-live="polite"></div>
 
       <div class="prompter__controls" data-role="controls">
         <div class="prompter__group prompter__group--utility">
