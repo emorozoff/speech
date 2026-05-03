@@ -12,6 +12,7 @@ import {
   deleteScript,
   duplicateScript,
   restoreScript,
+  setLastPosition,
 } from '../src/storage/scripts.js';
 
 beforeEach(async () => {
@@ -146,4 +147,35 @@ test('restoreScript: возвращает удалённый скрипт с т�
 test('restoreScript: требует id', async () => {
   await assert.rejects(restoreScript({ title: 'X' }));
   await assert.rejects(restoreScript(null));
+});
+
+test('setLastPosition: сохраняет позицию и длину текста', async () => {
+  const created = await createScript({ title: 'A', body: 'тело' });
+  await setLastPosition(created.id, 0.42, 4);
+  const fetched = await getScript(created.id);
+  assert.equal(fetched.lastPosition, 0.42);
+  assert.equal(fetched.lastBodyLength, 4);
+});
+
+test('setLastPosition: НЕ обновляет updatedAt', async () => {
+  const created = await createScript({ body: 'X' });
+  await new Promise((r) => setTimeout(r, 10));
+  await setLastPosition(created.id, 0.5, 1);
+  const fetched = await getScript(created.id);
+  assert.equal(fetched.updatedAt, created.updatedAt);
+});
+
+test('setLastPosition: клампит позицию в [0,1]', async () => {
+  const created = await createScript({ body: 'X' });
+  await setLastPosition(created.id, 1.5, 1);
+  let f = await getScript(created.id);
+  assert.equal(f.lastPosition, 1);
+  await setLastPosition(created.id, -0.3, 1);
+  f = await getScript(created.id);
+  assert.equal(f.lastPosition, 0);
+});
+
+test('setLastPosition: на несуществующий id возвращает null', async () => {
+  const result = await setLastPosition('nope', 0.5, 1);
+  assert.equal(result, null);
 });

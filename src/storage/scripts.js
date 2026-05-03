@@ -88,8 +88,31 @@ export async function importScript(data) {
     createdAt: typeof data.createdAt === 'number' ? data.createdAt : now,
     updatedAt: now,
   };
+  if (typeof data.lastPosition === 'number' && data.lastPosition >= 0) {
+    script.lastPosition = Math.min(1, data.lastPosition);
+  }
+  if (typeof data.lastBodyLength === 'number' && data.lastBodyLength >= 0) {
+    script.lastBodyLength = data.lastBodyLength;
+  }
   await dbPut(STORE_SCRIPTS, script);
   return script;
+}
+
+// Обновляет только техническое поле «где остановились». В отличие от
+// updateScript, не дёргает updatedAt — чтение не должно перетряхивать
+// порядок скриптов в библиотеке.
+export async function setLastPosition(id, lastPosition, lastBodyLength) {
+  const current = await getScript(id);
+  if (!current) return null;
+  const clamped = Math.min(1, Math.max(0, Number(lastPosition) || 0));
+  const next = {
+    ...current,
+    lastPosition: clamped,
+    lastBodyLength:
+      typeof lastBodyLength === 'number' ? lastBodyLength : current.lastBodyLength ?? 0,
+  };
+  await dbPut(STORE_SCRIPTS, next);
+  return next;
 }
 
 export async function duplicateScript(id) {

@@ -179,3 +179,19 @@ test('roundtrip: build → parse → import даёт те же скрипты', 
   const titles = list.map((s) => s.title).sort();
   assert.deepEqual(titles, ['A', 'B']);
 });
+
+test('roundtrip: lastPosition сохраняется через бэкап', async () => {
+  const { setLastPosition } = await import('../src/storage/scripts.js');
+  const created = await createScript({ title: 'A', body: 'тело A' });
+  await setLastPosition(created.id, 0.42, 6);
+
+  const backup = await buildBackup();
+  const json = JSON.stringify(backup);
+  await dbClear(STORE_SCRIPTS);
+
+  await importLibrary(parseBackup(json));
+  const list = await listScripts();
+  assert.equal(list.length, 1);
+  assert.equal(list[0].lastPosition, 0.42);
+  assert.equal(list[0].lastBodyLength, 6);
+});

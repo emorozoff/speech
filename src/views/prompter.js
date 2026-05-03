@@ -1,4 +1,9 @@
-import { getScript, updateScript, DEFAULT_SETTINGS } from '../storage/scripts.js';
+import {
+  getScript,
+  updateScript,
+  setLastPosition,
+  DEFAULT_SETTINGS,
+} from '../storage/scripts.js';
 import { getProfile, DEFAULT_WPM } from '../storage/profile.js';
 import { navigate } from '../lib/router.js';
 import { escapeHtml } from '../lib/format.js';
@@ -42,11 +47,20 @@ export async function renderPrompter(root, { id }) {
   let totalWords = 0;
   let totalSeconds = 0;
 
+  // «продолжить с N%»: позиция валидна, если она в осмысленном диапазоне
+  // и тело скрипта не было сильно переписано после паузы.
+  const stored = typeof script.lastPosition === 'number' ? script.lastPosition : 0;
+  const storedLen = typeof script.lastBodyLength === 'number' ? script.lastBodyLength : 0;
+  const currentLen = (script.body ?? '').length;
+  const lengthDrift = storedLen > 0 && Math.abs(currentLen - storedLen) > Math.max(50, currentLen * 0.1);
+  let canResume = stored >= 0.05 && stored < 0.98 && !lengthDrift;
+  const resumePercent = Math.max(1, Math.round(stored * 100));
+
   const persistSettings = debounce(async () => {
     await updateScript(id, { settings });
   }, 500);
 
-  root.innerHTML = renderTemplate(script, settings);
+  root.innerHTML = renderTemplate(script, settings, { canResume, resumePercent });
   const section = root.firstElementChild;
   section.classList.add('prompter--not-started');
 
@@ -68,6 +82,38 @@ export async function renderPrompter(root, { id }) {
   totalWords = wordElements.length;
   totalSeconds = wpm > 0 ? (totalWords / wpm) * 60 : 0;
 
+  const persistPosition = debounce(async () => {
+    const max = viewport.scrollHeight - viewport.clientHeight;
+    if (max <= 0) return;
+    const pos = Math.min(1, Math.max(0, viewport.scrollTop / max));
+    await setLastPosition(id, pos, currentLen);
+  }, 1500);
+
+  const clearStoredPosition = async () => {
+    persistPosition.cancel();
+    canResume = false;
+    await setLastPosition(id, 0, currentLen);
+  };
+
+  function findWordIndexAtScroll(scrollTop) {
+    const target = scrollTop + viewport.clientHeight / 2;
+    for (let i = 0; i < wordElements.length; i++) {
+      const w = wordElements[i];
+      if (w.offsetTop + w.offsetHeight >= target) return i;
+    }
+    return Math.max(0, wordElements.length - 1);
+  }
+
+  function applyResume() {
+    const max = viewport.scrollHeight - viewport.clientHeight;
+    if (max <= 0) return;
+    const targetScroll = stored * max;
+    viewport.scrollTop = targetScroll;
+    const idx = findWordIndexAtScroll(targetScroll);
+    currentWordIdx = idx;
+    setCurrentWord(idx);
+  }
+
   applyTextSettings(textEl, settings);
   applyVisualSettings(section, viewport, settings);
   syncToggleStates({ mirrorButton, lineButton, voiceButton, settings });
@@ -85,14 +131,19 @@ export async function renderPrompter(root, { id }) {
       const remaining = Math.max(0, (1 - progress) * totalSeconds);
       timerEl.textContent = formatTimer(remaining);
     }
+    if (isPlaying && progress > 0) persistPosition();
   }
 
   function syncIntroLabel() {
     if (!introIcon || !introLabel) return;
     introIcon.innerHTML = settings.voiceFollow ? ICON_MIC_LARGE : ICON_PLAY_LARGE;
-    introLabel.textContent = settings.voiceFollow
-      ? 'запустить с голосом'
-      : 'запустить';
+    if (canResume) {
+      introLabel.textContent = `продолжить · ${resumePercent}%`;
+    } else {
+      introLabel.textContent = settings.voiceFollow
+        ? 'запустить с голосом'
+        : 'запустить';
+    }
   }
 
   function syncVoiceListening() {
@@ -107,7 +158,11 @@ export async function renderPrompter(root, { id }) {
   }
 
   const engine = new ScrollEngine(viewport, settings.speed);
-  engine.onEnd = () => pause();
+  engine.onEnd = async () => {
+    pause();
+    await persistPosition.flush();
+    await clearStoredPosition();
+  };
   const scroller = new SmoothScroller(viewport);
 
   const showControls = () => {
@@ -158,6 +213,7 @@ export async function renderPrompter(root, { id }) {
     } else {
       engine.stop();
     }
+    persistPosition.flush();
     syncVoiceListening();
     showControls();
   };
@@ -167,7 +223,7 @@ export async function renderPrompter(root, { id }) {
     else await play();
   };
 
-  const reset = () => {
+  const reset = async () => {
     engine.stop();
     scroller.cancel();
     isPlaying = false;
@@ -179,6 +235,7 @@ export async function renderPrompter(root, { id }) {
       voice.setCursor(0);
       voice.pause();
     }
+    await clearStoredPosition();
     showControls();
   };
 
@@ -389,6 +446,7 @@ export async function renderPrompter(root, { id }) {
     }
     await exitFullscreen();
     await persistSettings.flush();
+    await persistPosition.flush();
   };
 
   const exit = async () => {
@@ -421,13 +479,24 @@ export async function renderPrompter(root, { id }) {
     if (action === 'intro-start') {
       e.preventDefault();
       e.stopPropagation();
+      if (canResume) applyResume();
+      await play();
+      return;
+    }
+    if (action === 'intro-restart') {
+      e.preventDefault();
+      e.stopPropagation();
+      await clearStoredPosition();
+      currentWordIdx = 0;
+      setCurrentWord(0);
+      viewport.scrollTop = 0;
       await play();
       return;
     }
     if (action === 'play') {
       await togglePlay();
     } else if (action === 'reset') {
-      reset();
+      await reset();
     } else if (action === 'exit') {
       await exit();
     } else if (action === 'speed-up') {
@@ -538,7 +607,7 @@ function renderBodyWithWords(body) {
   return out.join('');
 }
 
-function renderTemplate(script, settings) {
+function renderTemplate(script, settings, resume) {
   const body = script.body || '';
   return `
     <section class="prompter">
@@ -570,6 +639,15 @@ function renderTemplate(script, settings) {
           <span class="prompter__intro-icon" data-role="intro-icon"></span>
           <span class="prompter__intro-label" data-role="intro-label"></span>
         </button>
+        ${
+          resume.canResume
+            ? `<button
+                class="prompter__intro-secondary"
+                data-action="intro-restart"
+                type="button"
+              >начать сначала</button>`
+            : ''
+        }
         <p class="prompter__intro-hint">
           разрешите микрофон при первом запуске,<br/>затем
           <strong>«суфлёр стоп»</strong> и <strong>«суфлёр старт»</strong> голосом

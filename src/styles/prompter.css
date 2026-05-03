@@ -291,6 +291,24 @@
   text-transform: lowercase;
 }
 
+.prompter__intro-secondary {
+  margin-top: calc(var(--space-2) * -1);
+  padding: var(--space-2) var(--space-4);
+  color: var(--color-fg-dim);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  letter-spacing: 0.02em;
+  text-transform: lowercase;
+  border-radius: var(--radius-pill);
+  transition: color var(--duration-fast) var(--ease),
+    background var(--duration-fast) var(--ease);
+}
+
+.prompter__intro-secondary:active {
+  color: var(--color-fg);
+  background: var(--color-surface-2);
+}
+
 .prompter__intro-hint {
   margin: 0;
   text-align: center;

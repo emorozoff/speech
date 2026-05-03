@@ -19,6 +19,9 @@ export async function buildBackup() {
       settings: s.settings ?? null,
       createdAt: s.createdAt,
       updatedAt: s.updatedAt,
+      lastPosition: typeof s.lastPosition === 'number' ? s.lastPosition : 0,
+      lastBodyLength:
+        typeof s.lastBodyLength === 'number' ? s.lastBodyLength : 0,
     })),
     profile: profile
       ? { wpm: profile.wpm, calibratedAt: profile.calibratedAt ?? null }
@@ -80,6 +83,9 @@ export async function importLibrary(parsed) {
       body: s.body,
       settings: s.settings && typeof s.settings === 'object' ? s.settings : undefined,
       createdAt: typeof s.createdAt === 'number' ? s.createdAt : undefined,
+      lastPosition: typeof s.lastPosition === 'number' ? s.lastPosition : undefined,
+      lastBodyLength:
+        typeof s.lastBodyLength === 'number' ? s.lastBodyLength : undefined,
     });
     importedScripts++;
   }
