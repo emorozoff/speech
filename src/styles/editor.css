@@ -57,7 +57,7 @@
 
 .editor__start:active {
   transform: scale(0.92);
-  background: #ffa800;
+  background: var(--color-accent-active);
 }
 
 .editor__body {

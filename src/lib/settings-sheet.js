@@ -1,0 +1,161 @@
+import { escapeHtml } from './format.js';
+import { FONTS } from './fonts.js';
+
+const SLIDERS = [
+  { key: 'fontSize', label: 'размер шрифта', min: 16, max: 128, step: 1 },
+  { key: 'textWidth', label: 'ширина текста', min: 40, max: 100, step: 5 },
+  { key: 'speed', label: 'скорость', min: 1, max: 100, step: 1 },
+  { key: 'lineHeight', label: 'межстрочный', min: 1, max: 2.5, step: 0.1 },
+];
+
+const TOGGLES = [
+  { key: 'mirrorH', label: 'зеркало по горизонтали' },
+  { key: 'mirrorV', label: 'зеркало по вертикали' },
+  { key: 'readingLine', label: 'линия чтения' },
+  { key: 'voiceFollow', label: 'голосовое следование' },
+];
+
+export function openSettings({ parent, settings, onChange, exclude = [] }) {
+  const excluded = new Set(exclude);
+  const sliders = SLIDERS.filter((s) => !excluded.has(s.key));
+  const toggles = TOGGLES.filter((t) => !excluded.has(t.key));
+
+  const sheet = document.createElement('div');
+  sheet.className = 'sheet';
+  sheet.innerHTML = `
+    <div class="sheet__backdrop" data-action="sheet-close"></div>
+    <div class="sheet__panel" role="dialog" aria-label="настройки">
+      <header class="sheet__header">
+        <h2 class="sheet__title">настройки</h2>
+        <button class="sheet__close" data-action="sheet-close" aria-label="закрыть">
+          ${ICON_CLOSE}
+        </button>
+      </header>
+      <div class="sheet__content">
+        ${excluded.has('font') ? '' : renderFontPicker(settings.font)}
+        ${sliders.length > 0 ? '<div class="sheet__divider"></div>' : ''}
+        ${sliders.map((s) => renderSlider(s, settings[s.key])).join('')}
+        ${toggles.length > 0 ? '<div class="sheet__divider"></div>' : ''}
+        ${toggles.map((t) => renderToggle(t, settings[t.key])).join('')}
+      </div>
+    </div>
+  `;
+  parent.appendChild(sheet);
+
+  requestAnimationFrame(() => sheet.classList.add('sheet--open'));
+
+  const close = () => {
+    sheet.classList.remove('sheet--open');
+    setTimeout(() => sheet.remove(), 240);
+  };
+
+  sheet.addEventListener('click', (e) => {
+    if (e.target.closest('[data-action="sheet-close"]')) close();
+    const fontChip = e.target.closest('.font-chip');
+    if (fontChip) {
+      const value = fontChip.dataset.value;
+      sheet.querySelectorAll('.font-chip').forEach((chip) => {
+        chip.classList.toggle('is-selected', chip.dataset.value === value);
+      });
+      onChange('font', value);
+    }
+  });
+
+  sheet.querySelectorAll('input[data-setting]').forEach((input) => {
+    const key = input.dataset.setting;
+    const isCheckbox = input.type === 'checkbox';
+    const valueEl = sheet.querySelector(`[data-value-of="${key}"]`);
+
+    input.addEventListener('input', () => {
+      let value;
+      if (isCheckbox) {
+        value = input.checked;
+      } else {
+        const parsed = Number(input.value);
+        value = input.step && input.step.includes('.')
+          ? Math.round(parsed * 10) / 10
+          : parsed;
+      }
+      if (valueEl) valueEl.textContent = formatValue(key, value);
+      onChange(key, value);
+    });
+  });
+
+  sheet.querySelectorAll('.font-chip').forEach((chip) => {
+    chip.style.fontFamily = chip.dataset.stack;
+  });
+
+  return { close };
+}
+
+function renderFontPicker(currentFont) {
+  return `
+    <div class="setting-row setting-row--font">
+      <span class="setting-row__label">шрифт</span>
+      <div class="font-strip">
+        ${FONTS.map(
+          (f) => `
+          <button
+            class="font-chip ${currentFont === f.key ? 'is-selected' : ''}"
+            data-value="${escapeHtml(f.key)}"
+            data-stack="${escapeHtml(f.stack)}"
+            type="button"
+          >${escapeHtml(f.label)}</button>
+        `,
+        ).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function renderSlider(spec, value) {
+  return `
+    <div class="setting-row setting-row--slider">
+      <div class="setting-row__head">
+        <span class="setting-row__label">${spec.label}</span>
+        <span class="setting-row__value" data-value-of="${spec.key}">${formatValue(spec.key, value)}</span>
+      </div>
+      <input
+        type="range"
+        class="slider"
+        data-setting="${spec.key}"
+        min="${spec.min}"
+        max="${spec.max}"
+        step="${spec.step}"
+        value="${value}"
+      />
+    </div>
+  `;
+}
+
+function renderToggle(spec, checked) {
+  return `
+    <label class="setting-row setting-row--toggle">
+      <span class="setting-row__label">${spec.label}</span>
+      <span class="toggle">
+        <input
+          type="checkbox"
+          class="toggle__input"
+          data-setting="${spec.key}"
+          ${checked ? 'checked' : ''}
+        />
+        <span class="toggle__track" aria-hidden="true">
+          <span class="toggle__thumb"></span>
+        </span>
+      </span>
+    </label>
+  `;
+}
+
+function formatValue(key, value) {
+  if (key === 'fontSize') return `${value} px`;
+  if (key === 'textWidth') return `${value} %`;
+  if (key === 'lineHeight') return value.toFixed(1);
+  return String(value);
+}
+
+const ICON_CLOSE = `
+  <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none">
+    <path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+  </svg>
+`;

@@ -19,6 +19,7 @@ import {
   acquireWakeLock,
   releaseWakeLock,
 } from '../lib/screen.js';
+import { openSettings } from '../lib/settings-sheet.js';
 
 const FONT_SIZE_STEP = 4;
 const FONT_SIZE_MIN = 16;
@@ -380,6 +381,51 @@ export async function renderPrompter(root, { id }) {
     clearCurrentWord();
   };
 
+  const openPromptSettings = () => {
+    openSettings({
+      parent: section,
+      settings,
+      onChange: (key, value) => {
+        settings[key] = value;
+        if (
+          key === 'font' ||
+          key === 'fontSize' ||
+          key === 'lineHeight' ||
+          key === 'textWidth'
+        ) {
+          applyTextSettings(textEl, settings);
+          updatePadding();
+          if (key === 'fontSize' && fontReadout) {
+            fontReadout.textContent = String(settings.fontSize);
+          }
+          if (currentWordEl) {
+            requestAnimationFrame(() => scrollToWord(currentWordIdx, 0));
+          }
+        } else if (
+          key === 'mirrorH' ||
+          key === 'mirrorV' ||
+          key === 'readingLine'
+        ) {
+          applyVisualSettings(section, viewport, settings);
+          syncToggleStates({ mirrorButton, lineButton, voiceButton, settings });
+        } else if (key === 'speed') {
+          engine.setSpeed(settings.speed);
+          if (speedReadout) speedReadout.textContent = String(settings.speed);
+        } else if (key === 'voiceFollow') {
+          // Голос меняется через настройки: если выключили — глушим сейчас,
+          // если включили — подхватится при следующем play (включать на ходу
+          // нельзя, нужен явный user gesture для микрофона).
+          if (!settings.voiceFollow && voice) {
+            disableVoice();
+          }
+          syncToggleStates({ mirrorButton, lineButton, voiceButton, settings });
+          syncIntroLabel();
+        }
+        persistSettings();
+      },
+    });
+  };
+
   const toggleVoice = async () => {
     settings.voiceFollow = !settings.voiceFollow;
     if (settings.voiceFollow) {
@@ -520,6 +566,10 @@ export async function renderPrompter(root, { id }) {
     } else if (action === 'toggle-voice') {
       toggleVoice();
       showControls();
+    } else if (action === 'settings-open') {
+      e.stopPropagation();
+      openPromptSettings();
+      showControls();
     } else if (e.target.closest('[data-role="controls"]')) {
       showControls();
     } else {
@@ -628,6 +678,12 @@ function renderTemplate(script, settings, resume) {
       </div>
 
       <div class="prompter__timer" data-role="timer">0:00</div>
+
+      <button
+        class="prompter__settings-button"
+        data-action="settings-open"
+        aria-label="настройки"
+      >${ICON_GEAR}</button>
 
       <div class="prompter__zone-hint prompter__zone-hint--left" aria-hidden="true">−</div>
       <div class="prompter__zone-hint prompter__zone-hint--right" aria-hidden="true">+</div>
@@ -773,6 +829,13 @@ const ICON_MIC = `
     <rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/>
     <path d="M5 11a7 7 0 0 0 14 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
     <path d="M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+  </svg>
+`;
+
+const ICON_GEAR = `
+  <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none">
+    <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/>
+    <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
   </svg>
 `;
 

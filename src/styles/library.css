@@ -100,7 +100,7 @@
 }
 
 .library__undo-toast-button:active {
-  background: rgba(255, 184, 0, 0.18);
+  background: rgba(255, 69, 58, 0.22);
 }
 
 .library__undo-toast-bar {
@@ -288,5 +288,5 @@
 }
 
 .button--primary:active {
-  background: #ffa800;
+  background: var(--color-accent-active);
 }

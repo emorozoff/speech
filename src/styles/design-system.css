@@ -3,8 +3,9 @@
   --color-fg: #ffffff;
   --color-fg-dim: #888888;
   --color-fg-faint: #444444;
-  --color-accent: #ffb800;
-  --color-accent-soft: rgba(255, 184, 0, 0.16);
+  --color-accent: #ff453a;
+  --color-accent-active: #e0342c;
+  --color-accent-soft: rgba(255, 69, 58, 0.18);
   --color-danger: #ff4444;
   --color-surface: #0a0a0a;
   --color-surface-2: #131313;
