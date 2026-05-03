@@ -12,6 +12,7 @@ import {
   wordCount,
   wordsLabel,
 } from '../lib/format.js';
+import { APP_VERSION_DISPLAY } from '../lib/version.js';
 
 let openMenu = null;
 
@@ -65,7 +66,10 @@ function renderEmpty() {
   return `
     <section class="library library--empty">
       <header class="topbar">
-        <h1 class="topbar__brand">speech</h1>
+        <h1 class="topbar__brand">
+          speech
+          <span class="topbar__version">${APP_VERSION_DISPLAY}</span>
+        </h1>
       </header>
       <div class="empty">
         <span class="empty__dot" aria-hidden="true"></span>
@@ -81,7 +85,10 @@ function renderList(scripts) {
   return `
     <section class="library">
       <header class="topbar">
-        <h1 class="topbar__brand">speech</h1>
+        <h1 class="topbar__brand">
+          speech
+          <span class="topbar__version">${APP_VERSION_DISPLAY}</span>
+        </h1>
         <button
           class="topbar__add"
           data-action="new"
