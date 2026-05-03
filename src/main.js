@@ -7,6 +7,7 @@ import './styles/editor.css';
 import './styles/prompter.css';
 import './styles/calibrate.css';
 import './styles/modal.css';
+import './styles/onboarding.css';
 
 import * as scriptsApi from './storage/scripts.js';
 import { route, notFound, navigate, start } from './lib/router.js';
@@ -16,6 +17,7 @@ import { renderPrompter } from './views/prompter.js';
 import { renderCalibrate } from './views/calibrate.js';
 import { checkForUpdate } from './lib/version.js';
 import { showUpdatePopup } from './views/update-popup.js';
+import { shouldShowOnboarding, showOnboarding } from './views/onboarding.js';
 
 if (import.meta.env.DEV) {
   window.__storage = scriptsApi;
@@ -31,7 +33,14 @@ notFound(() => navigate('/', { replace: true }));
 
 start();
 
+// shouldShowOnboarding должен сработать ДО checkForUpdate,
+// потому что checkForUpdate сам пишет lastSeenVersion в storage
+// и тем самым «закрашивает» состояние «совсем первый запуск».
+const showFirstRun = shouldShowOnboarding();
 const updateInfo = checkForUpdate();
-if (updateInfo.isUpdate) {
+
+if (showFirstRun) {
+  showOnboarding();
+} else if (updateInfo.isUpdate) {
   showUpdatePopup({ previousVersion: updateInfo.previousVersion });
 }

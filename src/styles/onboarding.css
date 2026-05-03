@@ -1,0 +1,116 @@
+.onboarding {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
+  opacity: 0;
+  transition: opacity var(--duration-base) var(--ease);
+  padding-top: var(--safe-top);
+}
+
+.onboarding.is-visible {
+  opacity: 1;
+}
+
+.onboarding__pages {
+  flex: 1;
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  min-height: 0;
+}
+
+.onboarding__pages::-webkit-scrollbar {
+  display: none;
+}
+
+.onboarding__page {
+  flex: 0 0 100%;
+  scroll-snap-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6) var(--space-5);
+  text-align: center;
+  gap: var(--space-3);
+}
+
+.onboarding__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: var(--space-4);
+  color: var(--color-accent);
+}
+
+.onboarding__icon--dot {
+  width: 56px;
+  height: 56px;
+}
+
+.onboarding__icon--dot::after {
+  content: '';
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  box-shadow: 0 0 32px var(--color-accent-soft);
+}
+
+.onboarding__title {
+  margin: 0;
+  font-size: var(--fs-2xl);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.02em;
+  text-transform: lowercase;
+}
+
+.onboarding__text {
+  margin: 0;
+  max-width: 36ch;
+  color: var(--color-fg-dim);
+  font-size: var(--fs-md);
+  line-height: 1.55;
+}
+
+.onboarding__text strong {
+  color: var(--color-fg);
+  font-weight: var(--fw-semibold);
+}
+
+.onboarding__pagination {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+}
+
+.onboarding__dot {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-border);
+  transition:
+    background var(--duration-base) var(--ease),
+    transform var(--duration-base) var(--ease);
+  cursor: pointer;
+}
+
+.onboarding__dot.is-active {
+  background: var(--color-accent);
+  transform: scale(1.2);
+}
+
+.onboarding__next {
+  align-self: center;
+  margin: var(--space-3) var(--space-5)
+    calc(var(--space-5) + var(--safe-bottom));
+  min-width: 220px;
+}
