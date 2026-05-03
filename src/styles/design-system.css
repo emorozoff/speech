@@ -54,3 +54,14 @@
 
   --tap-target-min: 44px;
 }
+
+[data-theme="light"] {
+  --color-bg: #ffffff;
+  --color-fg: #111111;
+  --color-fg-dim: #555555;
+  --color-fg-faint: #999999;
+  --color-surface: #f4f4f4;
+  --color-surface-2: #e8e8e8;
+  --color-border: #d4d4d4;
+  /* акцент остаётся #ff453a — он одинаково читается на обоих фонах */
+}

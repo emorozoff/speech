@@ -2,6 +2,7 @@ import { STORE_PROFILE, dbGet, dbPut } from './db.js';
 
 const PROFILE_ID = 'self';
 export const DEFAULT_WPM = 160;
+export const DEFAULT_THEME = 'dark';
 
 export async function getProfile() {
   const record = await dbGet(STORE_PROFILE, PROFILE_ID);
@@ -13,11 +14,26 @@ export async function saveWpm(wpm) {
   if (!Number.isFinite(value) || value <= 0) {
     throw new Error('WPM must be a positive number');
   }
+  const current = (await getProfile()) ?? { id: PROFILE_ID };
   const profile = {
+    ...current,
     id: PROFILE_ID,
     wpm: value,
     calibratedAt: Date.now(),
   };
+  await dbPut(STORE_PROFILE, profile);
+  return profile;
+}
+
+export async function getTheme() {
+  const profile = await getProfile();
+  return profile?.theme ?? DEFAULT_THEME;
+}
+
+export async function setTheme(theme) {
+  const value = theme === 'light' ? 'light' : 'dark';
+  const current = (await getProfile()) ?? { id: PROFILE_ID };
+  const profile = { ...current, id: PROFILE_ID, theme: value };
   await dbPut(STORE_PROFILE, profile);
   return profile;
 }

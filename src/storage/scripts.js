@@ -9,6 +9,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   mirrorH: true,
   mirrorV: false,
   readingLine: true,
+  readingLinePosition: 'center',
   voiceFollow: true,
 });
 

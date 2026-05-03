@@ -98,7 +98,7 @@ export async function renderPrompter(root, { id }) {
   };
 
   function findWordIndexAtScroll(scrollTop) {
-    const target = scrollTop + viewport.clientHeight / 2;
+    const target = scrollTop + viewport.clientHeight * readingLineRatio();
     for (let i = 0; i < wordElements.length; i++) {
       const w = wordElements[i];
       if (w.offsetTop + w.offsetHeight >= target) return i;
@@ -116,6 +116,20 @@ export async function renderPrompter(root, { id }) {
     setCurrentWord(idx);
   }
 
+  function readingLineRatio() {
+    if (settings.readingLinePosition === 'top') return 0.25;
+    if (settings.readingLinePosition === 'bottom') return 0.75;
+    return 0.5;
+  }
+
+  function applyReadingLinePosition() {
+    section.style.setProperty(
+      '--reading-line-top',
+      `${readingLineRatio() * 100}%`,
+    );
+  }
+
+  applyReadingLinePosition();
   applyTextSettings(textEl, settings);
   applyVisualSettings(section, viewport, settings);
   syncToggleStates({ mirrorButton, lineButton, voiceButton, settings });
@@ -469,6 +483,11 @@ export async function renderPrompter(root, { id }) {
         ) {
           applyVisualSettings(section, viewport, settings);
           syncToggleStates({ mirrorButton, lineButton, voiceButton, settings });
+        } else if (key === 'readingLinePosition') {
+          applyReadingLinePosition();
+          if (currentWordEl) {
+            requestAnimationFrame(() => scrollToWord(currentWordIdx, 0));
+          }
         } else if (key === 'speed') {
           engine.setSpeed(settings.speed);
           if (speedReadout) speedReadout.textContent = String(settings.speed);
@@ -532,7 +551,7 @@ export async function renderPrompter(root, { id }) {
       viewport.scrollTop +
       (wordRect.top - viewportRect.top) +
       wordRect.height / 2;
-    const target = wordCenter - viewport.clientHeight / 2;
+    const target = wordCenter - viewport.clientHeight * readingLineRatio();
     scroller.scrollTo(target, durationMs);
   }
 

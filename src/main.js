@@ -10,6 +10,7 @@ import './styles/modal.css';
 import './styles/onboarding.css';
 
 import * as scriptsApi from './storage/scripts.js';
+import { getTheme } from './storage/profile.js';
 import { route, notFound, navigate, start } from './lib/router.js';
 import { renderLibrary } from './views/library.js';
 import { renderEditor } from './views/editor.js';
@@ -22,6 +23,12 @@ import { shouldShowOnboarding, showOnboarding } from './views/onboarding.js';
 if (import.meta.env.DEV) {
   window.__storage = scriptsApi;
 }
+
+// Тема применяется до старта роутера, чтобы избежать «вспышки» исходной
+// тёмной темы у пользователей со светлой настройкой.
+getTheme().then((theme) => {
+  document.documentElement.dataset.theme = theme;
+});
 
 const root = document.getElementById('app');
 

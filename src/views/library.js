@@ -8,6 +8,8 @@ import {
 } from '../storage/scripts.js';
 import {
   getProfile,
+  getTheme,
+  setTheme,
   estimateReadingSeconds,
   formatReadingTime,
   DEFAULT_WPM,
@@ -26,6 +28,7 @@ import {
   parseBackup,
   importLibrary,
 } from '../lib/backup.js';
+import { showConfirmModal } from '../lib/confirm-modal.js';
 
 let openMenu = null;
 
@@ -34,10 +37,16 @@ const CARD_MENU_ITEMS = [
   { action: 'delete', label: 'Удалить', danger: true },
 ];
 
-const TOPBAR_MENU_ITEMS = [
-  { action: 'export', label: 'Экспорт' },
-  { action: 'import', label: 'Импорт' },
-];
+function topbarMenuItems(theme) {
+  return [
+    { action: 'export', label: 'Экспорт' },
+    { action: 'import', label: 'Импорт' },
+    {
+      action: 'theme-toggle',
+      label: theme === 'light' ? 'Тёмная тема' : 'Светлая тема',
+    },
+  ];
+}
 
 export async function renderLibrary(root) {
   closeMenu();
@@ -88,7 +97,8 @@ export async function renderLibrary(root) {
     } else if (action === 'more') {
       e.preventDefault();
       e.stopPropagation();
-      toggleMenu(target, 'topbar', TOPBAR_MENU_ITEMS, async (chosen) => {
+      const currentTheme = await getTheme();
+      toggleMenu(target, 'topbar', topbarMenuItems(currentTheme), async (chosen) => {
         if (chosen === 'export') {
           try {
             await downloadBackup();
@@ -97,6 +107,8 @@ export async function renderLibrary(root) {
           }
         } else if (chosen === 'import') {
           triggerImport(root);
+        } else if (chosen === 'theme-toggle') {
+          await handleThemeToggle(currentTheme, root);
         }
       });
     }
@@ -384,6 +396,25 @@ function showInfoToast(root, text, variant = 'success') {
 function errorMessage(err) {
   if (!err) return 'неизвестная ошибка';
   return typeof err.message === 'string' ? err.message : String(err);
+}
+
+async function handleThemeToggle(currentTheme, root) {
+  if (currentTheme === 'dark') {
+    const ok = await showConfirmModal({
+      title: 'светлая тема?',
+      body: 'тёмная тема легче для глаз — особенно во время чтения с суфлёра. вы уверены?',
+      confirmLabel: 'включить светлую',
+      cancelLabel: 'оставить тёмную',
+    });
+    if (!ok) return;
+    await setTheme('light');
+    document.documentElement.dataset.theme = 'light';
+    showInfoToast(root, 'тема: светлая');
+  } else {
+    await setTheme('dark');
+    document.documentElement.dataset.theme = 'dark';
+    showInfoToast(root, 'тема: тёмная');
+  }
 }
 
 const ICON_DOTS = `

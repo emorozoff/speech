@@ -15,10 +15,23 @@ const TOGGLES = [
   { key: 'voiceFollow', label: 'голосовое следование' },
 ];
 
+const SELECTS = [
+  {
+    key: 'readingLinePosition',
+    label: 'положение линии',
+    options: [
+      { value: 'top', label: 'сверху' },
+      { value: 'center', label: 'центр' },
+      { value: 'bottom', label: 'снизу' },
+    ],
+  },
+];
+
 export function openSettings({ parent, settings, onChange, exclude = [] }) {
   const excluded = new Set(exclude);
   const sliders = SLIDERS.filter((s) => !excluded.has(s.key));
   const toggles = TOGGLES.filter((t) => !excluded.has(t.key));
+  const selects = SELECTS.filter((s) => !excluded.has(s.key));
 
   const sheet = document.createElement('div');
   sheet.className = 'sheet';
@@ -35,6 +48,8 @@ export function openSettings({ parent, settings, onChange, exclude = [] }) {
         ${excluded.has('font') ? '' : renderFontPicker(settings.font)}
         ${sliders.length > 0 ? '<div class="sheet__divider"></div>' : ''}
         ${sliders.map((s) => renderSlider(s, settings[s.key])).join('')}
+        ${selects.length > 0 ? '<div class="sheet__divider"></div>' : ''}
+        ${selects.map((s) => renderSelect(s, settings[s.key])).join('')}
         ${toggles.length > 0 ? '<div class="sheet__divider"></div>' : ''}
         ${toggles.map((t) => renderToggle(t, settings[t.key])).join('')}
       </div>
@@ -58,6 +73,17 @@ export function openSettings({ parent, settings, onChange, exclude = [] }) {
         chip.classList.toggle('is-selected', chip.dataset.value === value);
       });
       onChange('font', value);
+    }
+    const segmentedOption = e.target.closest('.segmented__option');
+    if (segmentedOption) {
+      const segmented = segmentedOption.closest('[data-segmented]');
+      if (!segmented) return;
+      const key = segmented.dataset.segmented;
+      const value = segmentedOption.dataset.value;
+      segmented.querySelectorAll('.segmented__option').forEach((opt) => {
+        opt.classList.toggle('is-selected', opt.dataset.value === value);
+      });
+      onChange(key, value);
     }
   });
 
@@ -124,6 +150,27 @@ function renderSlider(spec, value) {
         step="${spec.step}"
         value="${value}"
       />
+    </div>
+  `;
+}
+
+function renderSelect(spec, value) {
+  return `
+    <div class="setting-row setting-row--select">
+      <span class="setting-row__label">${escapeHtml(spec.label)}</span>
+      <div class="segmented" data-segmented="${escapeHtml(spec.key)}">
+        ${spec.options
+          .map(
+            (o) => `
+              <button
+                class="segmented__option ${value === o.value ? 'is-selected' : ''}"
+                data-value="${escapeHtml(o.value)}"
+                type="button"
+              >${escapeHtml(o.label)}</button>
+            `,
+          )
+          .join('')}
+      </div>
     </div>
   `;
 }
