@@ -1,5 +1,6 @@
 const routes = [];
 let notFoundHandler = null;
+let firstDispatch = true;
 
 export function route(pattern, handler) {
   routes.push({ parts: pattern.split('/'), handler });
@@ -25,16 +26,28 @@ export function start() {
 }
 
 function dispatch() {
+  const isFirst = firstDispatch;
+  firstDispatch = false;
   const path = window.location.hash.slice(1) || '/';
   const pathParts = path.split('/');
   for (const { parts, handler } of routes) {
     const params = match(parts, pathParts);
     if (params) {
-      handler(params);
+      runHandler(handler, params, isFirst);
       return;
     }
   }
   if (notFoundHandler) notFoundHandler({ path });
+}
+
+function runHandler(handler, params, isFirst) {
+  // На первом dispatch нет «старого» состояния — view transition
+  // мигнул бы пустым экраном. Пропускаем.
+  if (isFirst || typeof document.startViewTransition !== 'function') {
+    handler(params);
+    return;
+  }
+  document.startViewTransition(() => Promise.resolve(handler(params)));
 }
 
 function match(patternParts, pathParts) {
