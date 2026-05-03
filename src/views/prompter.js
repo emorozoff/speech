@@ -1,4 +1,5 @@
 import { getScript, updateScript, DEFAULT_SETTINGS } from '../storage/scripts.js';
+import { getProfile, DEFAULT_WPM } from '../storage/profile.js';
 import { navigate } from '../lib/router.js';
 import { escapeHtml } from '../lib/format.js';
 import { debounce } from '../lib/debounce.js';
@@ -23,13 +24,14 @@ const SPEED_MAX = 100;
 const CONTROLS_HIDE_AFTER_MS = 2500;
 
 export async function renderPrompter(root, { id }) {
-  const script = await getScript(id);
+  const [script, profile] = await Promise.all([getScript(id), getProfile()]);
   if (!script) {
     navigate('/', { replace: true });
     return;
   }
 
   const settings = { ...DEFAULT_SETTINGS, ...(script.settings ?? {}) };
+  const wpm = profile?.wpm ?? DEFAULT_WPM;
   let isPlaying = false;
   let wakeLock = null;
   let controlsTimer = null;
@@ -37,6 +39,8 @@ export async function renderPrompter(root, { id }) {
   let voice = null;
   let currentWordIdx = 0;
   let currentWordEl = null;
+  let totalWords = 0;
+  let totalSeconds = 0;
 
   const persistSettings = debounce(async () => {
     await updateScript(id, { settings });
@@ -57,13 +61,31 @@ export async function renderPrompter(root, { id }) {
   const voiceButton = section.querySelector('[data-action="toggle-voice"]');
   const introIcon = section.querySelector('[data-role="intro-icon"]');
   const introLabel = section.querySelector('[data-role="intro-label"]');
+  const progressTopEl = section.querySelector('[data-role="progress-top"]');
+  const progressBottomEl = section.querySelector('[data-role="progress-bottom"]');
+  const timerEl = section.querySelector('[data-role="timer"]');
   const wordElements = textEl.querySelectorAll('.prompter__word');
+  totalWords = wordElements.length;
+  totalSeconds = wpm > 0 ? (totalWords / wpm) * 60 : 0;
 
   applyTextSettings(textEl, settings);
   applyVisualSettings(section, viewport, settings);
   syncToggleStates({ mirrorButton, lineButton, voiceButton, settings });
   syncIntroLabel();
   updatePadding();
+  updateProgressAndTimer();
+
+  function updateProgressAndTimer() {
+    const max = viewport.scrollHeight - viewport.clientHeight;
+    const progress = max > 0 ? Math.min(1, Math.max(0, viewport.scrollTop / max)) : 0;
+    const pct = `${(progress * 100).toFixed(2)}%`;
+    if (progressTopEl) progressTopEl.style.width = pct;
+    if (progressBottomEl) progressBottomEl.style.width = pct;
+    if (timerEl) {
+      const remaining = Math.max(0, (1 - progress) * totalSeconds);
+      timerEl.textContent = formatTimer(remaining);
+    }
+  }
 
   function syncIntroLabel() {
     if (!introIcon || !introLabel) return;
@@ -360,6 +382,7 @@ export async function renderPrompter(root, { id }) {
     if (controlsTimer) clearTimeout(controlsTimer);
     window.removeEventListener('resize', updatePadding);
     document.removeEventListener('visibilitychange', onVisibility);
+    viewport.removeEventListener('scroll', updateProgressAndTimer);
     if (wakeLock) {
       await releaseWakeLock(wakeLock);
       wakeLock = null;
@@ -379,6 +402,7 @@ export async function renderPrompter(root, { id }) {
     const pad = `${Math.round(h / 2)}px`;
     padTop.style.height = pad;
     padBottom.style.height = pad;
+    updateProgressAndTimer();
   }
 
   async function onVisibility() {
@@ -387,6 +411,7 @@ export async function renderPrompter(root, { id }) {
 
   window.addEventListener('resize', updatePadding);
   document.addEventListener('visibilitychange', onVisibility);
+  viewport.addEventListener('scroll', updateProgressAndTimer, { passive: true });
 
   // settings.voiceFollow auto-enable удалено: микрофон требует
   // явного user gesture, иначе iOS может молча отказать.
@@ -483,6 +508,13 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
+function formatTimer(seconds) {
+  const total = Math.max(0, Math.round(seconds));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
 function renderBodyWithWords(body) {
   if (!body) return '<span class="prompter__empty">пустой текст</span>';
   const re = /[\p{L}\p{N}]+/gu;
@@ -510,6 +542,10 @@ function renderTemplate(script, settings) {
   const body = script.body || '';
   return `
     <section class="prompter">
+      <div class="prompter__progress prompter__progress--top" aria-hidden="true">
+        <div class="prompter__progress-bar" data-role="progress-top"></div>
+      </div>
+
       <div class="prompter__viewport" data-role="viewport">
         <div class="prompter__pad" data-role="pad-top"></div>
         <div class="prompter__text" data-role="text">${renderBodyWithWords(body)}</div>
@@ -517,6 +553,12 @@ function renderTemplate(script, settings) {
       </div>
 
       <div class="prompter__reading-line" aria-hidden="true"></div>
+
+      <div class="prompter__progress prompter__progress--bottom" aria-hidden="true">
+        <div class="prompter__progress-bar" data-role="progress-bottom"></div>
+      </div>
+
+      <div class="prompter__timer" data-role="timer">0:00</div>
 
       <div class="prompter__zone-hint prompter__zone-hint--left" aria-hidden="true">−</div>
       <div class="prompter__zone-hint prompter__zone-hint--right" aria-hidden="true">+</div>

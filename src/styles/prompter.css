@@ -19,6 +19,54 @@
   display: none;
 }
 
+.prompter__progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.05);
+  pointer-events: none;
+  z-index: 5;
+}
+
+.prompter__progress--top {
+  top: 0;
+}
+
+.prompter__progress--bottom {
+  bottom: 0;
+}
+
+.prompter__progress-bar {
+  width: 0;
+  height: 100%;
+  background: var(--color-accent);
+  border-radius: 0 1px 1px 0;
+}
+
+.prompter__timer {
+  position: absolute;
+  top: calc(var(--safe-top) + var(--space-2));
+  right: max(var(--space-3), var(--safe-right));
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-fg);
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: var(--radius-pill);
+  z-index: 5;
+  pointer-events: none;
+  transition: opacity var(--duration-base) var(--ease);
+}
+
+.prompter--idle .prompter__timer {
+  opacity: 0.45;
+}
+
 .prompter__viewport--mirror-h .prompter__text {
   transform: scaleX(-1);
 }
