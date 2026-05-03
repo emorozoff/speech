@@ -6,9 +6,10 @@ import {
 import { navigate } from '../lib/router.js';
 import { escapeHtml } from '../lib/format.js';
 import { debounce } from '../lib/debounce.js';
+import { FONTS } from '../lib/fonts.js';
 
 const SLIDERS = [
-  { key: 'fontSize', label: 'размер шрифта', min: 24, max: 128, step: 1, unit: 'px' },
+  { key: 'fontSize', label: 'размер шрифта', min: 16, max: 128, step: 1, unit: 'px' },
   { key: 'textWidth', label: 'ширина текста', min: 40, max: 100, step: 5, unit: '%' },
   { key: 'speed', label: 'скорость', min: 1, max: 100, step: 1, unit: '' },
   { key: 'lineHeight', label: 'межстрочный', min: 1, max: 2.5, step: 0.1, unit: '' },
@@ -123,6 +124,8 @@ function openSettings(parent, state, save) {
         </button>
       </header>
       <div class="sheet__content">
+        ${renderFontPicker(state.settings.font)}
+        <div class="sheet__divider"></div>
         ${SLIDERS.map((s) => renderSlider(s, state.settings[s.key])).join('')}
         <div class="sheet__divider"></div>
         ${TOGGLES.map((t) => renderToggle(t, state.settings[t.key])).join('')}
@@ -140,9 +143,20 @@ function openSettings(parent, state, save) {
 
   sheet.addEventListener('click', (e) => {
     if (e.target.closest('[data-action="sheet-close"]')) close();
+    const fontChip = e.target.closest('.font-chip');
+    if (fontChip) {
+      state.settings.font = fontChip.dataset.value;
+      sheet.querySelectorAll('.font-chip').forEach((chip) => {
+        chip.classList.toggle(
+          'is-selected',
+          chip.dataset.value === state.settings.font,
+        );
+      });
+      save();
+    }
   });
 
-  sheet.querySelectorAll('[data-setting]').forEach((input) => {
+  sheet.querySelectorAll('input[data-setting]').forEach((input) => {
     const key = input.dataset.setting;
     const isCheckbox = input.type === 'checkbox';
     const valueEl = sheet.querySelector(`[data-value-of="${key}"]`);
@@ -162,6 +176,28 @@ function openSettings(parent, state, save) {
       save();
     });
   });
+
+  sheet.querySelectorAll('.font-chip').forEach((chip) => {
+    chip.style.fontFamily = chip.dataset.stack;
+  });
+}
+
+function renderFontPicker(currentFont) {
+  return `
+    <div class="setting-row setting-row--font">
+      <span class="setting-row__label">шрифт</span>
+      <div class="font-strip">
+        ${FONTS.map((f) => `
+          <button
+            class="font-chip ${currentFont === f.key ? 'is-selected' : ''}"
+            data-value="${escapeHtml(f.key)}"
+            data-stack="${escapeHtml(f.stack)}"
+            type="button"
+          >${escapeHtml(f.label)}</button>
+        `).join('')}
+      </div>
+    </div>
+  `;
 }
 
 function renderSlider(spec, value) {

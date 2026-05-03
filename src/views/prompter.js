@@ -6,6 +6,7 @@ import { ScrollEngine } from '../lib/prompter-engine.js';
 import { SmoothScroller } from '../lib/smooth-scroll.js';
 import { VoiceFollower } from '../lib/voice-follower.js';
 import { isSpeechSupported } from '../lib/recognition.js';
+import { getFontStack } from '../lib/fonts.js';
 import {
   enterFullscreen,
   exitFullscreen,
@@ -13,8 +14,8 @@ import {
   releaseWakeLock,
 } from '../lib/screen.js';
 
-const FONT_SIZE_STEP = 6;
-const FONT_SIZE_MIN = 24;
+const FONT_SIZE_STEP = 4;
+const FONT_SIZE_MIN = 16;
 const FONT_SIZE_MAX = 128;
 const SPEED_STEP = 5;
 const SPEED_MIN = 1;
@@ -330,6 +331,7 @@ function applyTextSettings(textEl, settings) {
   textEl.style.lineHeight = String(settings.lineHeight);
   const width = settings.textWidth ?? 90;
   textEl.style.maxWidth = `${width}%`;
+  textEl.style.fontFamily = getFontStack(settings.font);
 }
 
 function applyVisualSettings(section, viewport, settings) {
