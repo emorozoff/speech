@@ -294,10 +294,13 @@ export async function renderPrompter(root, { id }) {
 
   const enableVoice = async () => {
     if (!isSpeechSupported()) {
-      window.alert('Распознавание речи не поддерживается этим браузером');
       settings.voiceFollow = false;
       syncToggleStates({ mirrorButton, lineButton, voiceButton, settings });
       syncIntroLabel();
+      showVoiceErrorOverlay({
+        title: 'распознавание речи недоступно',
+        body: 'этот браузер не поддерживает распознавание речи. на iOS/iPadOS используйте Safari.',
+      });
       return;
     }
 
@@ -315,7 +318,7 @@ export async function renderPrompter(root, { id }) {
       onStateChange: () => {
         syncVoiceListening();
       },
-      onError: (msg) => {
+      onError: (msg, code) => {
         settings.voiceFollow = false;
         if (voice) {
           voice.stop();
@@ -327,13 +330,64 @@ export async function renderPrompter(root, { id }) {
         syncVoiceListening();
         syncIntroLabel();
         persistSettings();
-        window.alert(`Голосовое управление: ${msg}`);
+        if (code === 'permission-denied') {
+          showVoiceErrorOverlay({
+            title: 'микрофон недоступен',
+            body: 'разрешите доступ к микрофону, чтобы текст следовал за вашей речью.',
+            hint: 'Настройки → Safari → Микрофон → Разрешить',
+          });
+        } else {
+          showVoiceErrorOverlay({
+            title: 'голос отключён',
+            body: msg || 'произошла ошибка распознавания речи.',
+          });
+        }
       },
     });
     voice.setCursor(currentWordIdx);
     voice.start();
     syncVoiceListening();
   };
+
+  function showVoiceErrorOverlay({ title, body, hint }) {
+    let overlay = section.querySelector('[data-role="voice-error"]');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.className = 'prompter__voice-error';
+      overlay.dataset.role = 'voice-error';
+      overlay.innerHTML = `
+        <div class="prompter__voice-error-content">
+          <span class="prompter__voice-error-icon" aria-hidden="true">${ICON_MIC_OFF}</span>
+          <h3 class="prompter__voice-error-title" data-role="ve-title"></h3>
+          <p class="prompter__voice-error-body" data-role="ve-body"></p>
+          <p class="prompter__voice-error-hint" data-role="ve-hint"></p>
+          <button
+            class="button button--primary prompter__voice-error-button"
+            data-action="voice-error-dismiss"
+            type="button"
+          >понятно</button>
+        </div>
+      `;
+      section.appendChild(overlay);
+    }
+    overlay.querySelector('[data-role="ve-title"]').textContent = title;
+    overlay.querySelector('[data-role="ve-body"]').textContent = body;
+    const hintEl = overlay.querySelector('[data-role="ve-hint"]');
+    if (hint) {
+      hintEl.textContent = hint;
+      hintEl.style.display = '';
+    } else {
+      hintEl.style.display = 'none';
+    }
+    requestAnimationFrame(() => overlay.classList.add('is-visible'));
+  }
+
+  function hideVoiceErrorOverlay() {
+    const overlay = section.querySelector('[data-role="voice-error"]');
+    if (!overlay) return;
+    overlay.classList.remove('is-visible');
+    setTimeout(() => overlay.remove(), 240);
+  }
 
   const handleCommand = (cmd) => {
     showCommandToast(cmd.label);
@@ -580,6 +634,9 @@ export async function renderPrompter(root, { id }) {
       e.stopPropagation();
       openPromptSettings();
       showControls();
+    } else if (action === 'voice-error-dismiss') {
+      e.stopPropagation();
+      hideVoiceErrorOverlay();
     } else if (e.target.closest('[data-role="controls"]')) {
       showControls();
     } else {
@@ -841,6 +898,15 @@ const ICON_MIC = `
     <rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/>
     <path d="M5 11a7 7 0 0 0 14 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
     <path d="M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+  </svg>
+`;
+
+const ICON_MIC_OFF = `
+  <svg viewBox="0 0 24 24" width="44" height="44" aria-hidden="true" fill="none">
+    <rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/>
+    <path d="M5 11a7 7 0 0 0 14 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    <path d="M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    <path d="M3 3l18 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
   </svg>
 `;
 

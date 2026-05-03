@@ -61,10 +61,57 @@
 }
 
 .editor__body {
+  position: relative;
   flex: 1;
   display: flex;
   padding: var(--space-3) var(--space-4) calc(var(--space-4) + var(--safe-bottom));
   min-height: 0;
+}
+
+.editor__save-indicator {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-4);
+  z-index: 1;
+  font-size: var(--fs-xs);
+  letter-spacing: 0.02em;
+  color: var(--color-fg-faint);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-fast) var(--ease),
+    color var(--duration-fast) var(--ease);
+}
+
+.editor__save-indicator[data-state="saving"] {
+  opacity: 1;
+  color: var(--color-fg-dim);
+}
+
+.editor__save-indicator[data-state="saved"] {
+  opacity: 1;
+  color: var(--color-accent);
+}
+
+.editor__paste-toast {
+  position: absolute;
+  bottom: calc(var(--space-3) + var(--safe-bottom));
+  left: 50%;
+  transform: translate(-50%, calc(100% + 8px));
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-sm);
+  color: var(--color-fg-dim);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  white-space: nowrap;
+  transition: transform var(--duration-base) var(--ease);
+  z-index: 4;
+}
+
+.editor__paste-toast.is-visible {
+  transform: translate(-50%, 0);
 }
 
 .editor__body-input {

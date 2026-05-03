@@ -21,12 +21,36 @@ export async function renderEditor(root, { id }) {
     settings: { ...DEFAULT_SETTINGS, ...(script.settings ?? {}) },
   };
 
+  let indicatorTimer = null;
+  const setIndicator = (state) => {
+    if (!indicatorEl) return;
+    if (indicatorTimer) {
+      clearTimeout(indicatorTimer);
+      indicatorTimer = null;
+    }
+    indicatorEl.dataset.state = state;
+    if (state === 'saving') {
+      indicatorEl.textContent = 'сохраняем…';
+    } else if (state === 'saved') {
+      indicatorEl.textContent = 'сохранено';
+      indicatorTimer = setTimeout(() => {
+        if (indicatorEl.dataset.state === 'saved') {
+          indicatorEl.dataset.state = '';
+          indicatorEl.textContent = '';
+        }
+      }, 2000);
+    } else {
+      indicatorEl.textContent = '';
+    }
+  };
+
   const save = debounce(async () => {
     await updateScript(id, {
       title: state.title,
       body: state.body,
       settings: state.settings,
     });
+    setIndicator('saved');
   }, 300);
 
   root.innerHTML = renderTemplate(state);
@@ -34,13 +58,16 @@ export async function renderEditor(root, { id }) {
 
   const titleInput = section.querySelector('[data-field="title"]');
   const bodyInput = section.querySelector('[data-field="body"]');
+  const indicatorEl = section.querySelector('[data-role="save-indicator"]');
 
   titleInput.addEventListener('input', () => {
     state.title = titleInput.value;
+    setIndicator('saving');
     save();
   });
   bodyInput.addEventListener('input', () => {
     state.body = bodyInput.value;
+    setIndicator('saving');
     save();
   });
 
@@ -59,11 +86,59 @@ export async function renderEditor(root, { id }) {
         settings: state.settings,
         onChange: (key, value) => {
           state.settings[key] = value;
+          setIndicator('saving');
           save();
         },
       });
+    } else if (action === 'paste') {
+      await pasteFromClipboard(bodyInput, () => {
+        state.body = bodyInput.value;
+        setIndicator('saving');
+        save();
+      }, setIndicator);
     }
   });
+}
+
+async function pasteFromClipboard(textarea, onChange, setIndicator) {
+  if (!navigator.clipboard || !navigator.clipboard.readText) {
+    setIndicator?.('saving');
+    flashMessage(textarea, 'буфер обмена недоступен');
+    return;
+  }
+  try {
+    const text = await navigator.clipboard.readText();
+    if (!text) {
+      flashMessage(textarea, 'буфер пуст');
+      return;
+    }
+    const start = textarea.selectionStart ?? textarea.value.length;
+    const end = textarea.selectionEnd ?? textarea.value.length;
+    const value = textarea.value;
+    textarea.value = value.slice(0, start) + text + value.slice(end);
+    const caret = start + text.length;
+    textarea.selectionStart = textarea.selectionEnd = caret;
+    textarea.focus();
+    onChange();
+  } catch {
+    flashMessage(textarea, 'нажмите долго в текст → вставить');
+  }
+}
+
+function flashMessage(textarea, text) {
+  const parent = textarea.parentElement;
+  if (!parent) return;
+  let toast = parent.querySelector('.editor__paste-toast');
+  if (toast) toast.remove();
+  toast = document.createElement('span');
+  toast.className = 'editor__paste-toast';
+  toast.textContent = text;
+  parent.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('is-visible'));
+  setTimeout(() => {
+    toast.classList.remove('is-visible');
+    setTimeout(() => toast.remove(), 240);
+  }, 2200);
 }
 
 function renderTemplate(state) {
@@ -82,6 +157,9 @@ function renderTemplate(state) {
           autocomplete="off"
           spellcheck="false"
         />
+        <button class="editor__icon-button" data-action="paste" aria-label="вставить из буфера">
+          ${ICON_PASTE}
+        </button>
         <button class="editor__icon-button" data-action="settings-open" aria-label="настройки">
           ${ICON_GEAR}
         </button>
@@ -90,6 +168,7 @@ function renderTemplate(state) {
         </button>
       </header>
       <main class="editor__body">
+        <span class="editor__save-indicator" data-role="save-indicator" data-state=""></span>
         <textarea
           class="editor__body-input"
           data-field="body"
@@ -120,5 +199,13 @@ const ICON_GEAR = `
 const ICON_PLAY = `
   <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none">
     <path d="M8 5.5v13L19 12 8 5.5Z" fill="currentColor"/>
+  </svg>
+`;
+
+const ICON_PASTE = `
+  <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none">
+    <rect x="6" y="5" width="12" height="16" rx="2" stroke="currentColor" stroke-width="1.8"/>
+    <rect x="9" y="3" width="6" height="3" rx="1" fill="currentColor"/>
+    <path d="M9 12h6M9 16h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
   </svg>
 `;

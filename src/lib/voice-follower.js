@@ -7,6 +7,11 @@ const LOOKAHEAD = 30;
 const MATCH_THRESHOLD = 0.4;
 const RESTART_DELAY_MS = 250;
 const COMMAND_COOLDOWN_MS = 2000;
+// iOS Safari иногда «тихо» закрывает recognition: onend не приходит,
+// но и результатов больше нет. Если за это время ни одного onresult
+// не пришло — форсируем рестарт.
+const HEARTBEAT_INTERVAL_MS = 1000;
+const HEARTBEAT_TIMEOUT_MS = 5000;
 
 export class VoiceFollower {
   constructor({ scriptBody, onPosition, onCommand, onStateChange, onError }) {
@@ -23,20 +28,25 @@ export class VoiceFollower {
     this.recentWords = [];
     this._lastCommandLabel = '';
     this._lastCommandTime = 0;
+    this._lastResultTime = 0;
+    this._heartbeatTimer = null;
 
     this._handleResult = this._handleResult.bind(this);
     this._handleEnd = this._handleEnd.bind(this);
     this._handleError = this._handleError.bind(this);
+    this._heartbeatTick = this._heartbeatTick.bind(this);
   }
 
   start() {
     if (this.shouldRun) return;
     this.shouldRun = true;
     this._open();
+    this._startHeartbeat();
   }
 
   stop() {
     this.shouldRun = false;
+    this._stopHeartbeat();
     this._close();
     this.onStateChange('stopped');
   }
@@ -64,9 +74,10 @@ export class VoiceFollower {
       rec.onerror = this._handleError;
       this.recognition = rec;
       rec.start();
+      this._lastResultTime = Date.now();
       this.onStateChange('listening');
     } catch (err) {
-      this.onError(err.message ?? String(err));
+      this.onError(err.message ?? String(err), 'open-failed');
       this._scheduleRestart();
     }
   }
@@ -85,6 +96,7 @@ export class VoiceFollower {
   }
 
   _handleResult(event) {
+    this._lastResultTime = Date.now();
     const last = event.results[event.results.length - 1];
     if (!last) return;
     const transcript = last[0]?.transcript ?? '';
@@ -134,7 +146,8 @@ export class VoiceFollower {
     const code = event.error;
     if (code === 'not-allowed' || code === 'service-not-allowed') {
       this.shouldRun = false;
-      this.onError('Доступ к микрофону не дан');
+      this._stopHeartbeat();
+      this.onError('Доступ к микрофону не дан', 'permission-denied');
       return;
     }
     if (code === 'aborted') {
@@ -147,5 +160,33 @@ export class VoiceFollower {
     setTimeout(() => {
       if (this.shouldRun) this._open();
     }, RESTART_DELAY_MS);
+  }
+
+  _startHeartbeat() {
+    this._stopHeartbeat();
+    this._lastResultTime = Date.now();
+    this._heartbeatTimer = setInterval(
+      this._heartbeatTick,
+      HEARTBEAT_INTERVAL_MS,
+    );
+  }
+
+  _stopHeartbeat() {
+    if (this._heartbeatTimer) {
+      clearInterval(this._heartbeatTimer);
+      this._heartbeatTimer = null;
+    }
+  }
+
+  _heartbeatTick() {
+    if (!this.shouldRun) return;
+    const elapsed = Date.now() - this._lastResultTime;
+    if (elapsed < HEARTBEAT_TIMEOUT_MS) return;
+    // Recognition «застрял» — ни onresult, ни onend больше HEARTBEAT_TIMEOUT_MS.
+    // Сбрасываем таймер и форсируем рестарт.
+    this._lastResultTime = Date.now();
+    this.onStateChange('reconnecting');
+    this._close();
+    this._scheduleRestart();
   }
 }
