@@ -11,6 +11,7 @@ import {
   updateScript,
   deleteScript,
   duplicateScript,
+  restoreScript,
 } from '../src/storage/scripts.js';
 
 beforeEach(async () => {
@@ -130,4 +131,19 @@ test('duplicateScript: с пустым названием даёт "Копия"'
 
 test('duplicateScript: на несуществующий id бросает ошибку', async () => {
   await assert.rejects(duplicateScript('nope'), /not found/);
+});
+
+test('restoreScript: возвращает удалённый скрипт с тем же id', async () => {
+  const created = await createScript({ title: 'A', body: 'текст' });
+  await deleteScript(created.id);
+  assert.equal(await getScript(created.id), undefined);
+
+  await restoreScript(created);
+  const restored = await getScript(created.id);
+  assert.deepEqual(restored, created);
+});
+
+test('restoreScript: требует id', async () => {
+  await assert.rejects(restoreScript({ title: 'X' }));
+  await assert.rejects(restoreScript(null));
 });

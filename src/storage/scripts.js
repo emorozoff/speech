@@ -67,6 +67,14 @@ export function deleteScript(id) {
   return dbDelete(STORE_SCRIPTS, id);
 }
 
+export async function restoreScript(script) {
+  if (!script || !script.id) {
+    throw new Error('restoreScript requires a script with id');
+  }
+  await dbPut(STORE_SCRIPTS, script);
+  return script;
+}
+
 export async function duplicateScript(id) {
   const original = await getScript(id);
   if (!original) throw new Error(`Script ${id} not found`);

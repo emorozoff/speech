@@ -3,6 +3,8 @@ import {
   createScript,
   deleteScript,
   duplicateScript,
+  getScript,
+  restoreScript,
 } from '../storage/scripts.js';
 import {
   getProfile,
@@ -65,10 +67,7 @@ export async function renderLibrary(root) {
           await duplicateScript(id);
           await renderLibrary(root);
         } else if (chosen === 'delete') {
-          if (window.confirm('Удалить скрипт?')) {
-            await deleteScript(id);
-            await renderLibrary(root);
-          }
+          await handleDelete(id, root);
         }
       });
     }
@@ -222,6 +221,68 @@ function closeMenu() {
   openMenu.remove();
   openMenu = null;
 }
+
+async function handleDelete(id, root) {
+  const script = await getScript(id);
+  if (!script) return;
+  await deleteScript(id);
+  await renderLibrary(root);
+  showUndoToast(root, script);
+}
+
+function showUndoToast(root, script) {
+  // Если предыдущий тост ещё на экране — финализируем его
+  document.querySelectorAll('.library__undo-toast').forEach((el) => el.remove());
+
+  const section = root.firstElementChild;
+  if (!section) return;
+
+  const toast = document.createElement('div');
+  toast.className = 'library__undo-toast';
+  toast.innerHTML = `
+    <span class="library__undo-toast-icon" aria-hidden="true">${ICON_TRASH}</span>
+    <span class="library__undo-toast-text">удалено</span>
+    <button
+      class="library__undo-toast-button"
+      data-action="undo"
+      type="button"
+    >отменить</button>
+    <div class="library__undo-toast-bar" aria-hidden="true"></div>
+  `;
+  section.appendChild(toast);
+
+  requestAnimationFrame(() => toast.classList.add('is-visible'));
+
+  let timeoutId = null;
+  const dismiss = () => {
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId);
+      timeoutId = null;
+    }
+    toast.classList.remove('is-visible');
+    setTimeout(() => toast.remove(), 240);
+  };
+
+  toast.addEventListener('click', async (e) => {
+    if (!e.target.closest('[data-action="undo"]')) return;
+    e.stopPropagation();
+    dismiss();
+    try {
+      await restoreScript(script);
+    } catch {
+      /* ignore */
+    }
+    await renderLibrary(root);
+  });
+
+  timeoutId = setTimeout(dismiss, 5000);
+}
+
+const ICON_TRASH = `
+  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none">
+    <path d="M5 7h14M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+`;
 
 const ICON_BOLT = `
   <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="currentColor">
