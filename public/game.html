@@ -1,0 +1,678 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#1a1a2e" />
+  <title>Knight 3D — мини демка</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100%; overflow: hidden; background: #000;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      color: #fff;
+    }
+    #canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+    #overlay {
+      position: fixed; inset: 0; z-index: 10;
+      display: flex; align-items: center; justify-content: center;
+      background: radial-gradient(ellipse at center, rgba(0,0,0,0.55), rgba(0,0,0,0.88));
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      cursor: pointer;
+    }
+    .panel {
+      max-width: 480px; padding: 26px 30px; text-align: center;
+      background: rgba(20,20,30,0.78);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 18px;
+      box-shadow: 0 30px 60px rgba(0,0,0,0.4);
+    }
+    .panel h1 { font-size: 24px; margin-bottom: 10px; letter-spacing: -0.01em; font-weight: 700; }
+    .panel p { font-size: 14px; color: #c8c8d4; margin-bottom: 14px; line-height: 1.55; }
+    .controls {
+      text-align: left; margin: 14px auto 18px; max-width: 290px;
+      font-size: 14px; color: #d8d8e2;
+      display: grid; grid-template-columns: 110px 1fr; gap: 6px 14px;
+    }
+    .controls .key { color: #ffb84d; font-weight: 600; }
+    .start-btn {
+      background: #ffb84d; color: #1a1a2e;
+      padding: 11px 28px; border-radius: 999px;
+      font-weight: 600; font-size: 15px;
+      border: none; cursor: pointer;
+      transition: background 0.15s;
+    }
+    .start-btn:hover { background: #ffc46d; }
+    .hint-mobile {
+      margin-top: 12px; font-size: 12px; color: #888;
+    }
+
+    #hud {
+      position: fixed; top: 14px; left: 14px; z-index: 5;
+      font-size: 13px; color: rgba(255,255,255,0.92);
+      pointer-events: none; white-space: pre-line; line-height: 1.55;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.85);
+      font-feature-settings: "tnum" 1;
+    }
+    #crosshair {
+      position: fixed; top: 50%; left: 50%; width: 6px; height: 6px;
+      margin: -3px 0 0 -3px; background: rgba(255,255,255,0.65);
+      border-radius: 50%; z-index: 4; pointer-events: none;
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.4);
+    }
+    #footer-hint {
+      position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+      color: rgba(255,255,255,0.55); font-size: 12px;
+      pointer-events: none; z-index: 4;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <div id="hud"></div>
+  <div id="crosshair"></div>
+  <div id="footer-hint">Esc — пауза</div>
+  <div id="overlay">
+    <div class="panel">
+      <h1>Knight 3D — мини демка</h1>
+      <p>3D-игра прямо в браузере. Ты — рыцарь с мечом. Бей чучела на тренировочной площадке.</p>
+      <div class="controls">
+        <div class="key">W A S D</div><div>двигаться</div>
+        <div class="key">Shift</div><div>бежать</div>
+        <div class="key">Space</div><div>прыжок</div>
+        <div class="key">ЛКМ / J</div><div>удар мечом</div>
+        <div class="key">Мышь</div><div>повернуть камеру</div>
+        <div class="key">Esc</div><div>пауза</div>
+      </div>
+      <button id="start-btn" class="start-btn" type="button">Начать игру</button>
+      <div class="hint-mobile">Нужны клавиатура и мышь — мобильные пока не поддерживаются.</div>
+    </div>
+  </div>
+
+  <script type="importmap">
+    { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+
+    // ================================================================
+    // Constants
+    // ================================================================
+    const GRAVITY = -28;
+    const JUMP_VELOCITY = 9.5;
+    const WALK_SPEED = 4;
+    const RUN_SPEED = 8;
+    const ATTACK_DURATION = 0.55;
+    const HIT_RADIUS = 1.5;
+    const TURN_SPEED = 12;
+    const ACCEL = 12;
+
+    // ================================================================
+    // Renderer / scene / camera
+    // ================================================================
+    const canvas = document.getElementById('canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x9bd1ff);
+    scene.fog = new THREE.Fog(0xb6dcff, 35, 140);
+
+    const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 500);
+
+    // ================================================================
+    // Lighting
+    // ================================================================
+    scene.add(new THREE.HemisphereLight(0xbfdfff, 0x4a5a3a, 0.55));
+
+    const sun = new THREE.DirectionalLight(0xfff0d0, 1.05);
+    sun.position.set(20, 30, 12);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.camera.near = 1;
+    sun.shadow.camera.far = 100;
+    sun.shadow.camera.left = -45;
+    sun.shadow.camera.right = 45;
+    sun.shadow.camera.top = 45;
+    sun.shadow.camera.bottom = -45;
+    sun.shadow.bias = -0.0005;
+    scene.add(sun);
+
+    // ================================================================
+    // Ground + grid
+    // ================================================================
+    {
+      const ground = new THREE.Mesh(
+        new THREE.PlaneGeometry(400, 400),
+        new THREE.MeshStandardMaterial({ color: 0x6aa84f, roughness: 0.95 })
+      );
+      ground.rotation.x = -Math.PI / 2;
+      ground.receiveShadow = true;
+      scene.add(ground);
+
+      const grid = new THREE.GridHelper(200, 50, 0x224422, 0x335533);
+      grid.position.y = 0.02;
+      grid.material.opacity = 0.18;
+      grid.material.transparent = true;
+      scene.add(grid);
+    }
+
+    // ================================================================
+    // Trees + rocks (decoration)
+    // ================================================================
+    function makeTree(x, z) {
+      const tree = new THREE.Group();
+      const trunk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.3, 0.4, 2.5, 8),
+        new THREE.MeshStandardMaterial({ color: 0x6e3f1a, roughness: 1 })
+      );
+      trunk.position.y = 1.25;
+      trunk.castShadow = trunk.receiveShadow = true;
+      tree.add(trunk);
+      const leaves = new THREE.Mesh(
+        new THREE.ConeGeometry(1.4, 3, 8),
+        new THREE.MeshStandardMaterial({ color: 0x2d6a3e, roughness: 0.9 })
+      );
+      leaves.position.y = 3.5;
+      leaves.castShadow = true;
+      tree.add(leaves);
+      tree.position.set(x, 0, z);
+      tree.rotation.y = Math.random() * Math.PI;
+      scene.add(tree);
+    }
+    for (let i = 0; i < 30; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = 14 + Math.random() * 60;
+      makeTree(Math.cos(a) * r, Math.sin(a) * r);
+    }
+
+    const rockMat = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 1 });
+    for (let i = 0; i < 14; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = 6 + Math.random() * 30;
+      const s = 0.5 + Math.random() * 1.5;
+      const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.8 * s, 0), rockMat);
+      rock.position.set(Math.cos(a) * r, 0.5 * s, Math.sin(a) * r);
+      rock.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+      rock.castShadow = rock.receiveShadow = true;
+      scene.add(rock);
+    }
+
+    // ================================================================
+    // Knight
+    // Local convention: front = -Z, back = +Z, right hand = +X
+    // ================================================================
+    function makeKnight() {
+      const armorMat = new THREE.MeshStandardMaterial({ color: 0xc6c8d2, roughness: 0.45, metalness: 0.7 });
+      const accentMat = new THREE.MeshStandardMaterial({ color: 0x244c8a, roughness: 0.6 });
+      const skinMat = new THREE.MeshStandardMaterial({ color: 0xf2c89c, roughness: 0.85 });
+      const bladeMat = new THREE.MeshStandardMaterial({ color: 0xddddee, roughness: 0.2, metalness: 0.95 });
+      const hiltMat = new THREE.MeshStandardMaterial({ color: 0x2a1a0a, roughness: 0.9 });
+      const goldMat = new THREE.MeshStandardMaterial({ color: 0xc89a40, roughness: 0.4, metalness: 0.85 });
+      const plumeMat = new THREE.MeshStandardMaterial({ color: 0xaa2222, roughness: 0.7 });
+      const capeMat = new THREE.MeshStandardMaterial({ color: 0x882222, roughness: 0.85, side: THREE.DoubleSide });
+
+      const root = new THREE.Group();
+
+      const torso = new THREE.Mesh(new THREE.BoxGeometry(0.85, 1.05, 0.55), armorMat);
+      torso.position.y = 1.4;
+      torso.castShadow = true;
+      root.add(torso);
+
+      const belt = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.13, 0.6), accentMat);
+      belt.position.y = 0.92;
+      belt.castShadow = true;
+      root.add(belt);
+
+      const paulL = new THREE.Mesh(
+        new THREE.SphereGeometry(0.3, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+        armorMat
+      );
+      paulL.position.set(-0.55, 1.95, 0);
+      paulL.castShadow = true;
+      root.add(paulL);
+      const paulR = paulL.clone();
+      paulR.position.x = 0.55;
+      root.add(paulR);
+
+      const cape = new THREE.Mesh(new THREE.PlaneGeometry(0.85, 1.4), capeMat);
+      cape.position.set(0, 1.25, 0.29);
+      cape.castShadow = true;
+      root.add(cape);
+
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), skinMat);
+      head.position.y = 2.2;
+      head.castShadow = true;
+      root.add(head);
+
+      const helmet = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.5, 12), armorMat);
+      helmet.position.y = 2.3;
+      helmet.castShadow = true;
+      root.add(helmet);
+
+      const slit = new THREE.Mesh(
+        new THREE.BoxGeometry(0.4, 0.05, 0.05),
+        new THREE.MeshStandardMaterial({ color: 0x111111 })
+      );
+      slit.position.set(0, 2.22, -0.27);
+      root.add(slit);
+
+      const plume = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.45, 6), plumeMat);
+      plume.position.y = 2.78;
+      plume.castShadow = true;
+      root.add(plume);
+
+      function makeArm() {
+        const arm = new THREE.Group();
+        const upper = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.55, 0.26), armorMat);
+        upper.position.y = -0.275;
+        upper.castShadow = true;
+        arm.add(upper);
+        const fore = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.55, 0.24), armorMat);
+        fore.position.y = -0.825;
+        fore.castShadow = true;
+        arm.add(fore);
+        return arm;
+      }
+      const armL = makeArm();
+      armL.position.set(-0.55, 1.85, 0);
+      root.add(armL);
+      const armR = makeArm();
+      armR.position.set(0.55, 1.85, 0);
+      root.add(armR);
+
+      // Sword in right hand
+      const sword = new THREE.Group();
+      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.09, 1.25, 0.022), bladeMat);
+      blade.position.y = 0.62;
+      blade.castShadow = true;
+      sword.add(blade);
+      const tip = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.18, 4), bladeMat);
+      tip.position.y = 1.32;
+      tip.castShadow = true;
+      sword.add(tip);
+      const guard = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.08, 0.12), goldMat);
+      guard.position.y = 0.0;
+      sword.add(guard);
+      const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.28, 10), hiltMat);
+      grip.position.y = -0.18;
+      sword.add(grip);
+      const pommel = new THREE.Mesh(new THREE.SphereGeometry(0.075, 10, 10), goldMat);
+      pommel.position.y = -0.36;
+      sword.add(pommel);
+      sword.position.set(0, -1.0, 0.05);
+      armR.add(sword);
+
+      // Shield on left arm
+      const shield = new THREE.Group();
+      const shieldBody = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.75, 0.08), accentMat);
+      shieldBody.castShadow = true;
+      shield.add(shieldBody);
+      const emblem = new THREE.Mesh(new THREE.CircleGeometry(0.18, 16), goldMat);
+      emblem.position.z = 0.045;
+      shield.add(emblem);
+      shield.position.set(-0.13, -0.85, -0.18);
+      shield.rotation.y = -0.05;
+      armL.add(shield);
+
+      function makeLeg() {
+        const leg = new THREE.Group();
+        const upper = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.6, 0.3), armorMat);
+        upper.position.y = -0.3;
+        upper.castShadow = true;
+        leg.add(upper);
+        const lower = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.6, 0.28), armorMat);
+        lower.position.y = -0.9;
+        lower.castShadow = true;
+        leg.add(lower);
+        const foot = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.16, 0.5), accentMat);
+        foot.position.set(0, -1.27, -0.07);
+        foot.castShadow = true;
+        leg.add(foot);
+        return leg;
+      }
+      const legL = makeLeg();
+      legL.position.set(-0.21, 0.9, 0);
+      root.add(legL);
+      const legR = makeLeg();
+      legR.position.set(0.21, 0.9, 0);
+      root.add(legR);
+
+      root.userData = { armL, armR, legL, legR, head, sword, blade, tip };
+      return root;
+    }
+
+    const knight = makeKnight();
+    scene.add(knight);
+
+    // ================================================================
+    // Training dummies
+    // ================================================================
+    const dummies = [];
+    function makeDummy(x, z) {
+      const dummy = new THREE.Group();
+      const post = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.12, 0.12, 1.6, 10),
+        new THREE.MeshStandardMaterial({ color: 0x4d2e10, roughness: 1 })
+      );
+      post.position.y = 0.8;
+      post.castShadow = post.receiveShadow = true;
+      dummy.add(post);
+      const body = new THREE.Mesh(
+        new THREE.BoxGeometry(0.85, 0.95, 0.55),
+        new THREE.MeshStandardMaterial({ color: 0xa45a30, roughness: 0.95 })
+      );
+      body.position.y = 1.7;
+      body.castShadow = true;
+      dummy.add(body);
+      const head = new THREE.Mesh(
+        new THREE.SphereGeometry(0.32, 12, 10),
+        new THREE.MeshStandardMaterial({ color: 0xddccaa, roughness: 0.9 })
+      );
+      head.position.y = 2.4;
+      head.castShadow = true;
+      dummy.add(head);
+      const armBar = new THREE.Mesh(
+        new THREE.BoxGeometry(1.0, 0.15, 0.15),
+        new THREE.MeshStandardMaterial({ color: 0x4d2e10 })
+      );
+      armBar.position.y = 1.95;
+      armBar.castShadow = true;
+      dummy.add(armBar);
+      const hat = new THREE.Mesh(
+        new THREE.ConeGeometry(0.32, 0.3, 8),
+        new THREE.MeshStandardMaterial({ color: 0x553311 })
+      );
+      hat.position.y = 2.78;
+      dummy.add(hat);
+
+      dummy.position.set(x, 0, z);
+      dummy.userData = { health: 3, wobble: 0, fallenT: -1 };
+      scene.add(dummy);
+      dummies.push(dummy);
+    }
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      makeDummy(Math.cos(a) * 9, Math.sin(a) * 9);
+    }
+
+    // ================================================================
+    // Input
+    // ================================================================
+    const keys = Object.create(null);
+    let pointerLocked = false;
+    const yawRef = { value: 0 };
+    const pitchRef = { value: 0.18 };
+
+    const movementKeys = new Set([
+      'Space', 'KeyW', 'KeyA', 'KeyS', 'KeyD',
+      'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+    ]);
+
+    addEventListener('keydown', (e) => {
+      keys[e.code] = true;
+      if (e.code === 'KeyJ') queueAttack();
+      if (pointerLocked && movementKeys.has(e.code)) e.preventDefault();
+    });
+    addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+    const overlay = document.getElementById('overlay');
+    const startBtn = document.getElementById('start-btn');
+    const hud = document.getElementById('hud');
+
+    function tryLock() {
+      try {
+        const result = canvas.requestPointerLock();
+        if (result && typeof result.then === 'function') result.catch(() => {});
+      } catch (_) { /* unsupported */ }
+    }
+
+    overlay.addEventListener('click', tryLock);
+    startBtn.addEventListener('click', (e) => { e.stopPropagation(); tryLock(); });
+
+    addEventListener('blur', () => {
+      for (const k in keys) keys[k] = false;
+    });
+
+    canvas.addEventListener('mousedown', (e) => {
+      if (pointerLocked && e.button === 0) queueAttack();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!pointerLocked) return;
+      yawRef.value -= e.movementX * 0.0024;
+      pitchRef.value += e.movementY * 0.002;
+      pitchRef.value = Math.max(-0.55, Math.min(0.85, pitchRef.value));
+    });
+
+    document.addEventListener('pointerlockchange', () => {
+      pointerLocked = document.pointerLockElement === canvas;
+      overlay.style.display = pointerLocked ? 'none' : 'flex';
+    });
+
+    addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ================================================================
+    // State
+    // ================================================================
+    const state = {
+      pos: new THREE.Vector3(0, 0, 4),
+      vel: new THREE.Vector3(),
+      yaw: 0,
+      onGround: true,
+      walkPhase: 0,
+      attack: { active: false, t: 0, hit: new Set() },
+      totalHits: 0,
+    };
+
+    function queueAttack() {
+      if (state.attack.active) return;
+      state.attack.active = true;
+      state.attack.t = 0;
+      state.attack.hit.clear();
+    }
+
+    function getInputDir() {
+      const f = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
+      const r = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
+      // camera-relative
+      const sinY = Math.sin(yawRef.value);
+      const cosY = Math.cos(yawRef.value);
+      // horizontal forward = (-sinY, 0, -cosY); right = (cosY, 0, -sinY)
+      let dx = -sinY * f + cosY * r;
+      let dz = -cosY * f - sinY * r;
+      const m = Math.hypot(dx, dz);
+      if (m > 1) { dx /= m; dz /= m; }
+      return { x: dx, z: dz, mag: Math.min(m, 1) };
+    }
+
+    // ================================================================
+    // Game loop
+    // ================================================================
+    const clock = new THREE.Clock();
+    const tipWorld = new THREE.Vector3();
+    const focusVec = new THREE.Vector3();
+
+    function update(dt) {
+      dt = Math.min(dt, 0.05);
+
+      const input = getInputDir();
+      const running = !!(keys.ShiftLeft || keys.ShiftRight);
+      const targetSpeed = running ? RUN_SPEED : WALK_SPEED;
+      const isMoving = input.mag > 0.01;
+
+      // Knight rotates to face movement
+      if (isMoving) {
+        const desiredYaw = Math.atan2(-input.x, -input.z);
+        let dy = desiredYaw - state.yaw;
+        while (dy > Math.PI) dy -= Math.PI * 2;
+        while (dy < -Math.PI) dy += Math.PI * 2;
+        state.yaw += dy * Math.min(1, dt * TURN_SPEED);
+      }
+
+      const desVx = input.x * targetSpeed * input.mag;
+      const desVz = input.z * targetSpeed * input.mag;
+      const k = Math.min(1, dt * ACCEL);
+      state.vel.x += (desVx - state.vel.x) * k;
+      state.vel.z += (desVz - state.vel.z) * k;
+
+      if (keys.Space && state.onGround) {
+        state.vel.y = JUMP_VELOCITY;
+        state.onGround = false;
+      }
+
+      state.vel.y += GRAVITY * dt;
+      state.pos.addScaledVector(state.vel, dt);
+
+      if (state.pos.y < 0) {
+        state.pos.y = 0;
+        state.vel.y = 0;
+        state.onGround = true;
+      }
+
+      knight.position.copy(state.pos);
+      knight.rotation.y = state.yaw;
+
+      // -- Animation --
+      const speed = Math.hypot(state.vel.x, state.vel.z);
+      const moveAmt = Math.min(1, speed / RUN_SPEED);
+      const ud = knight.userData;
+
+      if (state.onGround && moveAmt > 0.05) {
+        state.walkPhase += dt * (running ? 9 : 6);
+      } else {
+        state.walkPhase *= Math.pow(0.001, dt);
+      }
+
+      const phase = state.walkPhase;
+      const swingA = Math.sin(phase) * moveAmt * 0.85;
+      const swingB = Math.sin(phase + Math.PI) * moveAmt * 0.85;
+
+      ud.legL.rotation.x = swingA;
+      ud.legR.rotation.x = swingB;
+
+      const bob = state.onGround ? Math.abs(Math.sin(phase)) * moveAmt * 0.07 : 0;
+      knight.position.y = state.pos.y + bob;
+
+      ud.armL.rotation.x = swingB * 0.7;
+      ud.armL.rotation.z = 0;
+
+      if (!state.onGround) {
+        ud.legL.rotation.x = -0.55;
+        ud.legR.rotation.x = -0.35;
+        ud.armL.rotation.x = -1.2;
+      }
+
+      // Attack
+      if (state.attack.active) {
+        state.attack.t += dt;
+        const t = state.attack.t / ATTACK_DURATION;
+        if (t >= 1) {
+          state.attack.active = false;
+          ud.armR.rotation.x = 0;
+          ud.armR.rotation.z = 0;
+        } else {
+          let armX = 0, armZ = 0;
+          if (t < 0.3) {
+            const u = t / 0.3;
+            armX = -2.4 * u;
+            armZ = -0.4 * u;
+          } else if (t < 0.78) {
+            const u = (t - 0.3) / 0.48;
+            armX = -2.4 + 3.2 * u;
+            armZ = -0.4 + 1.5 * u;
+          } else {
+            const u = (t - 0.78) / 0.22;
+            armX = 0.8 * (1 - u);
+            armZ = 1.1 * (1 - u);
+          }
+          ud.armR.rotation.x = armX;
+          ud.armR.rotation.z = armZ;
+
+          if (t > 0.35 && t < 0.78) {
+            ud.tip.getWorldPosition(tipWorld);
+            for (const dummy of dummies) {
+              if (state.attack.hit.has(dummy)) continue;
+              if (dummy.userData.fallenT >= 0) continue;
+              const dx = tipWorld.x - dummy.position.x;
+              const dy = tipWorld.y - (dummy.position.y + 1.7);
+              const dz = tipWorld.z - dummy.position.z;
+              if (dx * dx + dy * dy + dz * dz < HIT_RADIUS * HIT_RADIUS) {
+                state.attack.hit.add(dummy);
+                dummy.userData.health -= 1;
+                dummy.userData.wobble = 0.6;
+                state.totalHits++;
+                if (dummy.userData.health <= 0) dummy.userData.fallenT = 0;
+              }
+            }
+          }
+        }
+      } else {
+        ud.armR.rotation.x = swingA * 0.4;
+        ud.armR.rotation.z = 0;
+      }
+
+      // Dummies update
+      for (const dummy of dummies) {
+        const du = dummy.userData;
+        if (du.wobble > 0) {
+          du.wobble -= dt * 2;
+          dummy.rotation.z = Math.sin(performance.now() * 0.03 + dummy.position.x) * du.wobble * 0.18;
+        } else {
+          dummy.rotation.z *= Math.pow(0.001, dt);
+        }
+        if (du.fallenT >= 0) {
+          du.fallenT += dt;
+          dummy.rotation.x = -Math.min(Math.PI / 2, du.fallenT * 3.5);
+          if (du.fallenT > 4.5) {
+            du.fallenT = -1;
+            du.health = 3;
+            dummy.rotation.x = 0;
+          }
+        }
+      }
+
+      // Camera (orbital third-person)
+      const camDist = 5.2;
+      const cosP = Math.cos(pitchRef.value);
+      const sinP = Math.sin(pitchRef.value);
+      const sinY = Math.sin(yawRef.value);
+      const cosY = Math.cos(yawRef.value);
+      focusVec.set(state.pos.x, state.pos.y + 1.6, state.pos.z);
+      camera.position.set(
+        focusVec.x + camDist * cosP * sinY,
+        focusVec.y + camDist * sinP,
+        focusVec.z + camDist * cosP * cosY
+      );
+      camera.lookAt(focusVec);
+
+      // HUD
+      const stateText = !state.onGround ? 'В воздухе'
+        : running && isMoving ? 'Бег'
+        : isMoving ? 'Шаг'
+        : 'Покой';
+      hud.textContent =
+        `Скорость: ${speed.toFixed(1)} м/с\n` +
+        `Состояние: ${stateText}\n` +
+        `Удары: ${state.totalHits}`;
+    }
+
+    function tick() {
+      update(clock.getDelta());
+      renderer.render(scene, camera);
+      requestAnimationFrame(tick);
+    }
+    tick();
+  </script>
+</body>
+</html>
