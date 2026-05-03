@@ -68,6 +68,7 @@ export async function renderPrompter(root, { id }) {
   const viewport = section.querySelector('[data-role="viewport"]');
   const padTop = section.querySelector('[data-role="pad-top"]');
   const padBottom = section.querySelector('[data-role="pad-bottom"]');
+  const shiftEl = section.querySelector('[data-role="shift"]');
   const textEl = section.querySelector('[data-role="text"]');
   const speedReadout = section.querySelector('[data-readout="speed"]');
   const fontReadout = section.querySelector('[data-readout="fontSize"]');
@@ -158,7 +159,13 @@ export async function renderPrompter(root, { id }) {
     voiceButton.title = 'распознавание речи не поддерживается';
   }
 
-  const engine = new ScrollEngine(viewport, settings.speed);
+  const engine = new ScrollEngine(viewport, settings.speed, {
+    onFrame: (subPixel) => {
+      shiftEl.style.transform = subPixel > 0
+        ? `translate3d(0, -${subPixel}px, 0)`
+        : '';
+    },
+  });
   engine.onEnd = async () => {
     pause();
     await persistPosition.flush();
@@ -462,6 +469,9 @@ export async function renderPrompter(root, { id }) {
   function scrollToWord(idx, durationMs = 250) {
     const word = wordElements[idx];
     if (!word) return;
+    // Сбрасываем sub-pixel offset, иначе smooth-scroller считает позицию
+    // по «дрейфующему» базису и слово окажется не на линии чтения.
+    shiftEl.style.transform = '';
     const wordRect = word.getBoundingClientRect();
     const viewportRect = viewport.getBoundingClientRect();
     const wordCenter =
@@ -667,7 +677,9 @@ function renderTemplate(script, settings, resume) {
 
       <div class="prompter__viewport" data-role="viewport">
         <div class="prompter__pad" data-role="pad-top"></div>
-        <div class="prompter__text" data-role="text">${renderBodyWithWords(body)}</div>
+        <div class="prompter__shift" data-role="shift">
+          <div class="prompter__text" data-role="text">${renderBodyWithWords(body)}</div>
+        </div>
         <div class="prompter__pad" data-role="pad-bottom"></div>
       </div>
 

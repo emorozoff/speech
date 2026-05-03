@@ -132,6 +132,12 @@
   flex: none;
 }
 
+.prompter__shift {
+  /* sub-pixel offset для плавного скролла на низких скоростях.
+     translate здесь динамически выставляется из ScrollEngine.onFrame. */
+  will-change: transform;
+}
+
 .prompter__text {
   font-size: 64px;
   line-height: 1.5;

@@ -10,7 +10,7 @@ export function computeScrollStep(dtSeconds, speedSetting, accumulator) {
 }
 
 export class ScrollEngine {
-  constructor(viewport, speedSetting) {
+  constructor(viewport, speedSetting, options = {}) {
     this.viewport = viewport;
     this.speedSetting = speedSetting;
     this.running = false;
@@ -18,6 +18,10 @@ export class ScrollEngine {
     this.lastTime = 0;
     this.accumulator = 0;
     this.onEnd = null;
+    // onFrame(subPixel) даёт потребителю дробную часть пикселя для
+    // sub-pixel смещения через CSS-transform — иначе на скорости 1
+    // целочисленный scrollTop виден как редкие рывки по 1px.
+    this.onFrame = options.onFrame ?? null;
     this._step = this._step.bind(this);
   }
 
@@ -34,11 +38,14 @@ export class ScrollEngine {
     this.running = false;
     cancelAnimationFrame(this.frame);
     this.frame = 0;
+    this.accumulator = 0;
+    if (this.onFrame) this.onFrame(0);
   }
 
   reset() {
     this.viewport.scrollTop = 0;
     this.accumulator = 0;
+    if (this.onFrame) this.onFrame(0);
   }
 
   setSpeed(setting) {
@@ -64,6 +71,7 @@ export class ScrollEngine {
     if (delta > 0) {
       this.viewport.scrollTop += delta;
     }
+    if (this.onFrame) this.onFrame(accumulator);
 
     if (this.isAtEnd()) {
       this.stop();
