@@ -44,6 +44,8 @@ export async function renderPrompter(root, { id }) {
 
   root.innerHTML = renderTemplate(script, settings);
   const section = root.firstElementChild;
+  section.classList.add('prompter--not-started');
+
   const viewport = section.querySelector('[data-role="viewport"]');
   const padTop = section.querySelector('[data-role="pad-top"]');
   const padBottom = section.querySelector('[data-role="pad-bottom"]');
@@ -53,12 +55,29 @@ export async function renderPrompter(root, { id }) {
   const mirrorButton = section.querySelector('[data-action="toggle-mirror"]');
   const lineButton = section.querySelector('[data-action="toggle-line"]');
   const voiceButton = section.querySelector('[data-action="toggle-voice"]');
+  const introIcon = section.querySelector('[data-role="intro-icon"]');
+  const introLabel = section.querySelector('[data-role="intro-label"]');
   const wordElements = textEl.querySelectorAll('.prompter__word');
 
   applyTextSettings(textEl, settings);
   applyVisualSettings(section, viewport, settings);
   syncToggleStates({ mirrorButton, lineButton, voiceButton, settings });
+  syncIntroLabel();
   updatePadding();
+
+  function syncIntroLabel() {
+    if (!introIcon || !introLabel) return;
+    introIcon.innerHTML = settings.voiceFollow ? ICON_MIC_LARGE : ICON_PLAY_LARGE;
+    introLabel.textContent = settings.voiceFollow
+      ? 'запустить с голосом'
+      : 'запустить';
+  }
+
+  function syncVoiceListening() {
+    if (!voiceButton) return;
+    const listening = settings.voiceFollow && voice && isPlaying;
+    voiceButton.classList.toggle('is-listening', !!listening);
+  }
 
   if (!isSpeechSupported() && voiceButton) {
     voiceButton.setAttribute('disabled', 'true');
@@ -96,12 +115,15 @@ export async function renderPrompter(root, { id }) {
     if (isPlaying) return;
     isPlaying = true;
     section.classList.add('prompter--playing');
+    section.classList.remove('prompter--not-started');
     await acquireScreenLocks();
-    if (settings.voiceFollow && voice) {
-      voice.resume();
+    if (settings.voiceFollow) {
+      if (!voice) await enableVoice();
+      else voice.resume();
     } else {
       engine.start();
     }
+    syncVoiceListening();
     showControls();
   };
 
@@ -114,6 +136,7 @@ export async function renderPrompter(root, { id }) {
     } else {
       engine.stop();
     }
+    syncVoiceListening();
     showControls();
   };
 
@@ -187,10 +210,10 @@ export async function renderPrompter(root, { id }) {
       window.alert('Распознавание речи не поддерживается этим браузером');
       settings.voiceFollow = false;
       syncToggleStates({ mirrorButton, lineButton, voiceButton, settings });
+      syncIntroLabel();
       return;
     }
 
-    // engine off in voice mode
     engine.stop();
     await acquireScreenLocks();
 
@@ -202,10 +225,8 @@ export async function renderPrompter(root, { id }) {
         scrollToWord(idx);
       },
       onCommand: (cmd) => handleCommand(cmd),
-      onStateChange: (state) => {
-        if (voiceButton) {
-          voiceButton.classList.toggle('is-listening', state === 'listening');
-        }
+      onStateChange: () => {
+        syncVoiceListening();
       },
       onError: (msg) => {
         settings.voiceFollow = false;
@@ -216,14 +237,15 @@ export async function renderPrompter(root, { id }) {
         isPlaying = false;
         section.classList.remove('prompter--playing');
         syncToggleStates({ mirrorButton, lineButton, voiceButton, settings });
+        syncVoiceListening();
+        syncIntroLabel();
         persistSettings();
         window.alert(`Голосовое управление: ${msg}`);
       },
     });
     voice.setCursor(currentWordIdx);
     voice.start();
-    isPlaying = true;
-    section.classList.add('prompter--playing');
+    syncVoiceListening();
   };
 
   const handleCommand = (cmd) => {
@@ -275,15 +297,24 @@ export async function renderPrompter(root, { id }) {
     }
     isPlaying = false;
     section.classList.remove('prompter--playing');
-    if (voiceButton) voiceButton.classList.remove('is-listening');
+    syncVoiceListening();
     clearCurrentWord();
   };
 
   const toggleVoice = async () => {
     settings.voiceFollow = !settings.voiceFollow;
-    if (settings.voiceFollow) await enableVoice();
-    else disableVoice();
+    if (settings.voiceFollow) {
+      await enableVoice();
+      if (voice) {
+        isPlaying = true;
+        section.classList.add('prompter--playing');
+        syncVoiceListening();
+      }
+    } else {
+      disableVoice();
+    }
     syncToggleStates({ mirrorButton, lineButton, voiceButton, settings });
+    syncIntroLabel();
     persistSettings();
   };
 
@@ -362,6 +393,12 @@ export async function renderPrompter(root, { id }) {
 
   section.addEventListener('click', async (e) => {
     const action = e.target.closest('[data-action]')?.dataset.action;
+    if (action === 'intro-start') {
+      e.preventDefault();
+      e.stopPropagation();
+      await play();
+      return;
+    }
     if (action === 'play') {
       await togglePlay();
     } else if (action === 'reset') {
@@ -486,6 +523,17 @@ function renderTemplate(script, settings) {
 
       <div class="prompter__command-toast" data-role="command-toast" role="status" aria-live="polite"></div>
 
+      <div class="prompter__intro" data-role="intro">
+        <button class="prompter__intro-button" data-action="intro-start">
+          <span class="prompter__intro-icon" data-role="intro-icon"></span>
+          <span class="prompter__intro-label" data-role="intro-label"></span>
+        </button>
+        <p class="prompter__intro-hint">
+          разрешите микрофон при первом запуске,<br/>затем
+          <strong>«суфлёр стоп»</strong> и <strong>«суфлёр старт»</strong> голосом
+        </p>
+      </div>
+
       <div class="prompter__controls" data-role="controls">
         <div class="prompter__group prompter__group--utility">
           <button class="prompter__icon" data-action="exit" aria-label="выход">
@@ -605,5 +653,19 @@ const ICON_MIC = `
     <rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/>
     <path d="M5 11a7 7 0 0 0 14 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
     <path d="M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+  </svg>
+`;
+
+const ICON_MIC_LARGE = `
+  <svg viewBox="0 0 24 24" width="44" height="44" aria-hidden="true" fill="none">
+    <rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/>
+    <path d="M5 11a7 7 0 0 0 14 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    <path d="M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+  </svg>
+`;
+
+const ICON_PLAY_LARGE = `
+  <svg viewBox="0 0 24 24" width="44" height="44" aria-hidden="true" fill="none">
+    <path d="M8 5.5v13L19 12 8 5.5Z" fill="currentColor"/>
   </svg>
 `;

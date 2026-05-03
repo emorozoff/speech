@@ -9,7 +9,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   mirrorH: true,
   mirrorV: false,
   readingLine: true,
-  voiceFollow: false,
+  voiceFollow: true,
 });
 
 function uid() {

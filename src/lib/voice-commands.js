@@ -8,6 +8,8 @@ const SINGLE_COMMANDS = {
   старт: { action: 'play' },
   играй: { action: 'play' },
   играть: { action: 'play' },
+  плей: { action: 'play' },
+  слушай: { action: 'play' },
   сначала: { action: 'reset' },
   заново: { action: 'reset' },
   быстрее: { action: 'speedUp' },
