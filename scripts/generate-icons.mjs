@@ -8,18 +8,18 @@ const PUBLIC_DIR = path.resolve(__dirname, '../public');
 
 await mkdir(PUBLIC_DIR, { recursive: true });
 
+// Композиция: красный rec-кружок сверху + белый «speech» под ним.
+// padded — для maskable Android-иконки нужен safe area ~12% от краёв.
 function buildSvg(size, { padded = false } = {}) {
-  const dotR = padded ? Math.round(size * 0.156) : Math.round(size * 0.214);
-  const dotCy = padded ? Math.round(size * 0.453) : Math.round(size * 0.430);
-  const lineY = padded ? Math.round(size * 0.648) : Math.round(size * 0.684);
-  const lineW = padded ? Math.round(size * 0.273) : Math.round(size * 0.391);
-  const lineX = (size - lineW) / 2;
-  const lineH = Math.max(2, Math.round(size * 0.012));
   const cx = size / 2;
+  const dotR = padded ? Math.round(size * 0.137) : Math.round(size * 0.176);
+  const dotCy = padded ? Math.round(size * 0.39) : Math.round(size * 0.355);
+  const fontSize = padded ? Math.round(size * 0.18) : Math.round(size * 0.232);
+  const textY = padded ? Math.round(size * 0.66) : Math.round(size * 0.71);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
   <rect width="${size}" height="${size}" fill="#000000"/>
-  <circle cx="${cx}" cy="${dotCy}" r="${dotR}" fill="#FFB800"/>
-  <rect x="${lineX}" y="${lineY}" width="${lineW}" height="${lineH}" rx="${lineH / 2}" fill="#FFB800" opacity="0.7"/>
+  <circle cx="${cx}" cy="${dotCy}" r="${dotR}" fill="#FF453A"/>
+  <text x="${cx}" y="${textY}" font-family="-apple-system, 'SF Pro Display', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-weight="700" font-size="${fontSize}" fill="#FFFFFF" text-anchor="middle" dominant-baseline="central" letter-spacing="-0.03em">speech</text>
 </svg>`;
 }
 

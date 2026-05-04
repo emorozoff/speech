@@ -80,7 +80,11 @@ export function openSettings({
           : ''
       }
       <div class="sheet__content">
-        ${excluded.has('font') ? '' : renderFontPicker(settings.font)}
+        ${
+          excluded.has('font') || FONTS.length <= 1
+            ? ''
+            : renderFontPicker(settings.font)
+        }
         ${sliders.length > 0 ? '<div class="sheet__divider"></div>' : ''}
         ${sliders.map((s) => renderSlider(s, settings[s.key])).join('')}
         ${selects.length > 0 ? '<div class="sheet__divider"></div>' : ''}
