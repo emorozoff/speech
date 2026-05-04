@@ -84,6 +84,7 @@ export async function renderEditor(root, { id }) {
       openSettings({
         parent: section,
         settings: state.settings,
+        previewText: state.body,
         onChange: (key, value) => {
           state.settings[key] = value;
           setIndicator('saving');

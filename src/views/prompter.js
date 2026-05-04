@@ -472,6 +472,7 @@ export async function renderPrompter(root, { id }) {
     openSettings({
       parent: section,
       settings,
+      previewText: script.body,
       onChange: (key, value) => {
         settings[key] = value;
         if (

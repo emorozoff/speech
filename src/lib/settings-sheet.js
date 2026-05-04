@@ -1,5 +1,5 @@
 import { escapeHtml } from './format.js';
-import { FONTS } from './fonts.js';
+import { FONTS, getFontStack } from './fonts.js';
 
 const SLIDERS = [
   { key: 'fontSize', label: 'размер шрифта', min: 16, max: 128, step: 1 },
@@ -27,11 +27,38 @@ const SELECTS = [
   },
 ];
 
-export function openSettings({ parent, settings, onChange, exclude = [] }) {
+// Запасной текст для превью, если у пользователя пустой скрипт.
+const PREVIEW_FALLBACK =
+  'превью текста\nтак он будет\nвыглядеть в суфлёре';
+
+function buildPreviewSnippet(text) {
+  const trimmed = (text ?? '').trim();
+  if (!trimmed) return PREVIEW_FALLBACK;
+  // Берём начало текста, ограничиваем длиной, чтобы крупный шрифт
+  // не вылезал десятками строк за пределы превью.
+  return trimmed.slice(0, 240);
+}
+
+function applyPreviewSettings(textEl, settings) {
+  textEl.style.fontSize = `${settings.fontSize}px`;
+  textEl.style.lineHeight = String(settings.lineHeight);
+  textEl.style.maxWidth = `${settings.textWidth ?? 90}%`;
+  textEl.style.fontFamily = getFontStack(settings.font);
+}
+
+export function openSettings({
+  parent,
+  settings,
+  onChange,
+  exclude = [],
+  previewText,
+}) {
   const excluded = new Set(exclude);
   const sliders = SLIDERS.filter((s) => !excluded.has(s.key));
   const toggles = TOGGLES.filter((t) => !excluded.has(t.key));
   const selects = SELECTS.filter((s) => !excluded.has(s.key));
+  const showPreview = previewText !== undefined;
+  const snippet = showPreview ? buildPreviewSnippet(previewText) : '';
 
   const sheet = document.createElement('div');
   sheet.className = 'sheet';
@@ -44,6 +71,14 @@ export function openSettings({ parent, settings, onChange, exclude = [] }) {
           ${ICON_CLOSE}
         </button>
       </header>
+      ${
+        showPreview
+          ? `<div class="sheet__preview" data-role="preview">
+               <span class="sheet__preview-label">превью</span>
+               <div class="sheet__preview-text" data-role="preview-text">${escapeHtml(snippet)}</div>
+             </div>`
+          : ''
+      }
       <div class="sheet__content">
         ${excluded.has('font') ? '' : renderFontPicker(settings.font)}
         ${sliders.length > 0 ? '<div class="sheet__divider"></div>' : ''}
@@ -56,6 +91,24 @@ export function openSettings({ parent, settings, onChange, exclude = [] }) {
     </div>
   `;
   parent.appendChild(sheet);
+
+  const previewTextEl = sheet.querySelector('[data-role="preview-text"]');
+  if (previewTextEl) applyPreviewSettings(previewTextEl, settings);
+
+  // Любая правка через onChange может затрагивать визуал текста —
+  // обновляем превью на каждое изменение, не дублируя список ключей.
+  const refreshPreview = (key, value) => {
+    if (!previewTextEl) return;
+    if (
+      key === 'font' ||
+      key === 'fontSize' ||
+      key === 'lineHeight' ||
+      key === 'textWidth'
+    ) {
+      const next = { ...settings, [key]: value };
+      applyPreviewSettings(previewTextEl, next);
+    }
+  };
 
   requestAnimationFrame(() => sheet.classList.add('sheet--open'));
 
@@ -72,6 +125,8 @@ export function openSettings({ parent, settings, onChange, exclude = [] }) {
       sheet.querySelectorAll('.font-chip').forEach((chip) => {
         chip.classList.toggle('is-selected', chip.dataset.value === value);
       });
+      settings = { ...settings, font: value };
+      refreshPreview('font', value);
       onChange('font', value);
     }
     const segmentedOption = e.target.closest('.segmented__option');
@@ -83,6 +138,8 @@ export function openSettings({ parent, settings, onChange, exclude = [] }) {
       segmented.querySelectorAll('.segmented__option').forEach((opt) => {
         opt.classList.toggle('is-selected', opt.dataset.value === value);
       });
+      settings = { ...settings, [key]: value };
+      refreshPreview(key, value);
       onChange(key, value);
     }
   });
@@ -103,6 +160,8 @@ export function openSettings({ parent, settings, onChange, exclude = [] }) {
           : parsed;
       }
       if (valueEl) valueEl.textContent = formatValue(key, value);
+      settings = { ...settings, [key]: value };
+      refreshPreview(key, value);
       onChange(key, value);
     });
   });
