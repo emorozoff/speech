@@ -194,7 +194,11 @@ export async function renderPrompter(root, { id }) {
       clearTimeout(controlsTimer);
       controlsTimer = null;
     }
-    if (isPlaying || (voice && settings.voiceFollow)) {
+    // В голосовом режиме иконки видны до первой реплики — прячет их
+    // hideControlsImmediately из onPosition. Таймер автоскрытия взводим
+    // только когда движок сам крутит текст без голоса.
+    const inVoiceMode = voice && settings.voiceFollow;
+    if (isPlaying && !inVoiceMode) {
       controlsTimer = setTimeout(() => {
         section.classList.add('prompter--idle');
       }, CONTROLS_HIDE_AFTER_MS);
