@@ -20,7 +20,7 @@ export default defineConfig({
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['apple-touch-icon.png', 'icon.svg'],
+      includeAssets: ['apple-touch-icon.png', 'icon.svg', 'og-image.png'],
       manifest: {
         id: '/speech/',
         name: 'speech',
