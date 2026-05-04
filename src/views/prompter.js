@@ -155,11 +155,11 @@ export async function renderPrompter(root, { id }) {
     if (!introIcon || !introLabel) return;
     introIcon.innerHTML = settings.voiceFollow ? ICON_MIC_LARGE : ICON_PLAY_LARGE;
     if (canResume) {
-      introLabel.textContent = `продолжить · ${resumePercent}%`;
+      introLabel.textContent = `Продолжить · ${resumePercent}%`;
     } else {
       introLabel.textContent = settings.voiceFollow
-        ? 'запустить с голосом'
-        : 'запустить';
+        ? 'Поехали с голосом'
+        : 'Поехали';
     }
   }
 
@@ -321,8 +321,8 @@ export async function renderPrompter(root, { id }) {
       syncToggleStates({ mirrorButton, lineButton, voiceButton, settings });
       syncIntroLabel();
       showVoiceErrorOverlay({
-        title: 'распознавание речи недоступно',
-        body: 'этот браузер не поддерживает распознавание речи. на iOS/iPadOS используйте Safari.',
+        title: 'Распознавание речи недоступно',
+        body: 'Этот браузер не умеет распознавать речь. Откройте speech в Safari на iPhone — там работает.',
       });
       return;
     }
@@ -358,14 +358,14 @@ export async function renderPrompter(root, { id }) {
         persistSettings();
         if (code === 'permission-denied') {
           showVoiceErrorOverlay({
-            title: 'микрофон недоступен',
-            body: 'разрешите доступ к микрофону, чтобы текст следовал за вашей речью.',
+            title: 'Микрофон недоступен',
+            body: 'Дайте микрофону зелёный свет — и текст начнёт послушно бежать за вашим голосом.',
             hint: 'Настройки → Safari → Микрофон → Разрешить',
           });
         } else {
           showVoiceErrorOverlay({
-            title: 'голос отключён',
-            body: msg || 'произошла ошибка распознавания речи.',
+            title: 'Голос отключён',
+            body: msg || 'Что-то сломалось в распознавании речи. Попробуйте ещё раз.',
           });
         }
       },
@@ -391,7 +391,7 @@ export async function renderPrompter(root, { id }) {
             class="button button--primary prompter__voice-error-button"
             data-action="voice-error-dismiss"
             type="button"
-          >понятно</button>
+          >Понятно</button>
         </div>
       `;
       section.appendChild(overlay);
@@ -817,12 +817,12 @@ function renderTemplate(script, settings, resume) {
                 class="prompter__intro-secondary"
                 data-action="intro-restart"
                 type="button"
-              >начать сначала</button>`
+              >Начать сначала</button>`
             : ''
         }
         <p class="prompter__intro-hint">
-          разрешите микрофон при первом запуске,<br/>затем
-          <strong>«суфлёр стоп»</strong> и <strong>«суфлёр старт»</strong> голосом
+          Разрешите микрофон при первом запуске.<br/>
+          Голосом: <strong>«суфлёр стоп»</strong> и <strong>«суфлёр старт»</strong>
         </p>
       </div>
 

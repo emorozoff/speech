@@ -34,28 +34,27 @@ export function showOnboarding() {
         <span class="onboarding__icon onboarding__icon--dot" aria-hidden="true"></span>
         <h2 class="onboarding__title">speech</h2>
         <p class="onboarding__text">
-          телесуфлёр для блогера.<br/>
-          поставь телефон в стекло суфлёра<br/>
-          перед камерой и читай отражение.
+          Телесуфлёр для блогеров.<br/>
+          Поставьте телефон в стекло суфлёра<br/>
+          перед камерой — и читайте отражение.
         </p>
       </section>
       <section class="onboarding__page">
         <span class="onboarding__icon" aria-hidden="true">${ICON_MIC_LARGE}</span>
-        <h2 class="onboarding__title">голосом</h2>
+        <h2 class="onboarding__title">Текст слушает вас</h2>
         <p class="onboarding__text">
-          тапни <strong>🎤 запустить</strong> при старте,
-          и текст будет сам следовать за твоей речью.
-          скажи <strong>«суфлёр стоп»</strong> чтобы пауза,
-          <strong>«суфлёр старт»</strong> чтобы продолжить.
+          Разрешите микрофон — и текст поедет за вашим голосом сам.
+          Скажите <strong>«суфлёр стоп»</strong>, чтобы поставить на паузу,
+          и <strong>«суфлёр старт»</strong>, чтобы продолжить.
         </p>
       </section>
       <section class="onboarding__page">
         <span class="onboarding__icon" aria-hidden="true">${ICON_INSTALL}</span>
-        <h2 class="onboarding__title">на экран домой</h2>
+        <h2 class="onboarding__title">На главный экран</h2>
         <p class="onboarding__text">
-          в Safari открой <strong>«поделиться»</strong> →
-          <strong>«на экран Домой»</strong>.
-          получишь полноэкранный режим и работу оффлайн.
+          В Safari тапните <strong>«Поделиться»</strong> →
+          <strong>«На экран Домой»</strong>.
+          Получите полный экран и работу без интернета.
         </p>
       </section>
     </div>
@@ -68,7 +67,7 @@ export function showOnboarding() {
       class="onboarding__next button button--primary"
       data-action="next"
       type="button"
-    >дальше</button>
+    >Дальше</button>
   `;
   document.body.appendChild(overlay);
 
@@ -83,7 +82,7 @@ export function showOnboarding() {
       dot.classList.toggle('is-active', i === currentPage),
     );
     nextButton.textContent =
-      currentPage === totalPages - 1 ? 'понятно' : 'дальше';
+      currentPage === totalPages - 1 ? 'Поехали' : 'Дальше';
   }
 
   function close() {

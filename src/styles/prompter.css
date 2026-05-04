@@ -329,7 +329,6 @@
   font-size: var(--fs-lg);
   font-weight: var(--fw-semibold);
   letter-spacing: -0.01em;
-  text-transform: lowercase;
 }
 
 .prompter__intro-secondary {
@@ -339,7 +338,6 @@
   font-size: var(--fs-sm);
   font-weight: var(--fw-medium);
   letter-spacing: 0.02em;
-  text-transform: lowercase;
   border-radius: var(--radius-pill);
   transition: color var(--duration-fast) var(--ease),
     background var(--duration-fast) var(--ease);
@@ -407,7 +405,6 @@
   font-size: var(--fs-xl);
   font-weight: var(--fw-semibold);
   letter-spacing: -0.02em;
-  text-transform: lowercase;
 }
 
 .prompter__voice-error-body {
@@ -452,7 +449,6 @@
   transition:
     opacity 200ms var(--ease),
     transform 200ms var(--ease);
-  text-transform: lowercase;
   font-variant-numeric: tabular-nums;
 }
 
@@ -510,7 +506,6 @@
 
 .prompter__readout-label {
   font-size: 10px;
-  text-transform: lowercase;
   letter-spacing: 0.05em;
   color: var(--color-fg-faint);
 }

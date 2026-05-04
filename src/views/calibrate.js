@@ -7,13 +7,12 @@ import { tokenize } from '../lib/voice-matching.js';
 import { acquireWakeLock, releaseWakeLock } from '../lib/screen.js';
 
 const CALIBRATION_TEXT =
-  `Привет. Это калибровка скорости речи. Прочитайте этот текст вслух в своём обычном темпе. ` +
-  `Говорите так, как если бы вы записывали видео для своего блога. Не торопитесь и не замедляйтесь специально, ` +
-  `это испортит результат. Просто читайте как обычно, без особых усилий. ` +
-  `Калибровка нужна для того, чтобы приложение могло точно посчитать сколько времени займёт ` +
-  `чтение любого вашего скрипта. После того как закончите читать последнее предложение, ` +
-  `ничего нажимать не надо — суфлёр сам поймёт что вы дочитали. ` +
-  `Если возникнут сложности, можно нажать кнопку готово ниже.`;
+  `Привет. Сейчас замерим скорость вашей речи — это нужно, чтобы точно показывать ` +
+  `длительность ваших скриптов. Просто прочитайте этот текст вслух как обычно, ` +
+  `как если бы вы записывали видео для блога. Не торопитесь и не замедляйтесь специально — ` +
+  `это испортит результат. После последнего предложения нажимать ничего не нужно: ` +
+  `суфлёр сам поймёт, что вы дочитали. А если что-то пошло не так, ` +
+  `можно нажать «готово» внизу — и попробовать ещё раз.`;
 
 const TOTAL_WORDS = tokenize(CALIBRATION_TEXT).length;
 
@@ -54,7 +53,9 @@ export async function renderCalibrate(root) {
 
   const start = async () => {
     if (!isSpeechSupported()) {
-      window.alert('Распознавание речи не поддерживается этим браузером');
+      window.alert(
+        'Этот браузер не умеет распознавать речь. Откройте speech в Safari на iPhone.',
+      );
       return;
     }
     section.classList.remove('calibrate--ready');
@@ -76,7 +77,7 @@ export async function renderCalibrate(root) {
         }
       },
       onError: (msg) => {
-        window.alert(`Не удалось запустить микрофон: ${msg}`);
+        window.alert(`Микрофон не запускается: ${msg}`);
         cancel();
       },
     });
@@ -87,7 +88,7 @@ export async function renderCalibrate(root) {
     if (!section.classList.contains('calibrate--recording')) return;
     const elapsedSec = (Date.now() - startTime) / 1000;
     if (elapsedSec < 3 || currentWordIdx < 5) {
-      window.alert('Слишком мало данных для калибровки. Попробуйте ещё раз.');
+      window.alert('Слишком мало данных для замера. Попробуйте ещё раз.');
       cancel();
       return;
     }
@@ -169,25 +170,25 @@ function renderTemplate(profile) {
         <button class="topbar__back" data-action="back" aria-label="назад">
           ${ICON_BACK}
         </button>
-        <h1 class="topbar__title">калибровка</h1>
+        <h1 class="topbar__title">Калибровка</h1>
         <span class="topbar__spacer"></span>
       </header>
 
       <main class="calibrate__body">
         <div class="calibrate__intro">
           <span class="calibrate__icon">${ICON_MIC_LARGE}</span>
-          <h2 class="calibrate__heading">узнаем вашу скорость речи</h2>
+          <h2 class="calibrate__heading">Замерим, как быстро вы читаете</h2>
           <p class="calibrate__instruction">
-            прочитайте короткий текст вслух в обычном темпе, как для камеры.
-            результат используется чтобы показывать ожидаемое время чтения каждого скрипта.
+            Прочитайте короткий текст вслух — так, как читали бы в кадр.
+            На основе этого мы посчитаем, сколько займёт чтение любого вашего скрипта.
           </p>
           ${
             profile
-              ? `<p class="calibrate__current">сейчас сохранено: <strong>${profile.wpm} wpm</strong></p>`
-              : '<p class="calibrate__current">пока не откалибровано · используется средняя скорость 160 wpm</p>'
+              ? `<p class="calibrate__current">Сейчас: <strong>${profile.wpm} wpm</strong></p>`
+              : '<p class="calibrate__current">Пока не замеряли — берём 160 wpm</p>'
           }
           <button class="button button--primary calibrate__start-button" data-action="start">
-            начать
+            Начнём
           </button>
         </div>
 
@@ -199,23 +200,23 @@ function renderTemplate(profile) {
             ${renderTextWithWords(CALIBRATION_TEXT)}
           </div>
           <div class="calibrate__reading-actions">
-            <button class="button button--ghost" data-action="cancel">отмена</button>
-            <button class="button button--primary" data-action="finish">готово</button>
+            <button class="button button--ghost" data-action="cancel">Отмена</button>
+            <button class="button button--primary" data-action="finish">Готово</button>
           </div>
         </div>
 
         <div class="calibrate__result">
-          <p class="calibrate__result-label">ваша скорость</p>
+          <p class="calibrate__result-label">Ваша скорость</p>
           <p class="calibrate__result-value">
             <strong data-result="wpm">—</strong>
             <span class="calibrate__result-unit">wpm</span>
           </p>
           <p class="calibrate__result-hint">
-            это значение будет использоваться для расчёта времени чтения каждого скрипта.
+            С этой скоростью посчитаем время чтения для каждого скрипта.
           </p>
           <div class="calibrate__result-actions">
-            <button class="button button--ghost" data-action="retry">заново</button>
-            <button class="button button--primary" data-action="save">сохранить</button>
+            <button class="button button--ghost" data-action="retry">Заново</button>
+            <button class="button button--primary" data-action="save">Сохранить</button>
           </div>
         </div>
       </main>

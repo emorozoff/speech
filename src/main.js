@@ -8,6 +8,7 @@ import './styles/prompter.css';
 import './styles/calibrate.css';
 import './styles/modal.css';
 import './styles/onboarding.css';
+import './styles/help.css';
 
 import * as scriptsApi from './storage/scripts.js';
 import { getTheme } from './storage/profile.js';

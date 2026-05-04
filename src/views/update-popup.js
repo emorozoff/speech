@@ -11,10 +11,10 @@ export function showUpdatePopup({ previousVersion } = {}) {
   overlay.innerHTML = `
     <div class="modal" role="dialog" aria-labelledby="update-title">
       <span class="modal__dot" aria-hidden="true"></span>
-      <h2 class="modal__title" id="update-title">Приложение обновлено!</h2>
-      <p class="modal__text">Теперь оно стало лучше! (наверное)</p>
+      <h2 class="modal__title" id="update-title">Свежая версия!</h2>
+      <p class="modal__text">Стало чуть лучше. Наверное.</p>
       <p class="modal__meta">${fromText}</p>
-      <button class="button button--primary" data-action="modal-close">ок</button>
+      <button class="button button--primary" data-action="modal-close">Принято</button>
     </div>
   `;
   document.body.appendChild(overlay);

@@ -29,16 +29,18 @@ import {
   importLibrary,
 } from '../lib/backup.js';
 import { showConfirmModal } from '../lib/confirm-modal.js';
+import { showHelp } from './help.js';
 
 let openMenu = null;
 
 const CARD_MENU_ITEMS = [
-  { action: 'duplicate', label: 'Дублировать' },
+  { action: 'duplicate', label: 'Сделать копию' },
   { action: 'delete', label: 'Удалить', danger: true },
 ];
 
 function topbarMenuItems(theme) {
   return [
+    { action: 'help', label: 'Памятка' },
     { action: 'export', label: 'Экспорт' },
     { action: 'import', label: 'Импорт' },
     {
@@ -99,7 +101,9 @@ export async function renderLibrary(root) {
       e.stopPropagation();
       const currentTheme = await getTheme();
       toggleMenu(target, 'topbar', topbarMenuItems(currentTheme), async (chosen) => {
-        if (chosen === 'export') {
+        if (chosen === 'help') {
+          showHelp();
+        } else if (chosen === 'export') {
           try {
             await downloadBackup();
           } catch (err) {
@@ -132,9 +136,9 @@ function renderEmpty(profile) {
       ${renderProfileBanner(profile)}
       <div class="empty">
         <span class="empty__dot" aria-hidden="true"></span>
-        <h2 class="empty__title">пусто</h2>
-        <p class="empty__subtitle">создайте первый скрипт</p>
-        <button class="button button--primary" data-action="new">+ новый скрипт</button>
+        <h2 class="empty__title">Пока пусто</h2>
+        <p class="empty__subtitle">Создайте первый скрипт — и поехали</p>
+        <button class="button button--primary" data-action="new">+ Новый скрипт</button>
       </div>
     </section>
   `;
@@ -169,8 +173,8 @@ function renderList(scripts, profile, wpm) {
 
 function renderProfileBanner(profile) {
   const text = profile
-    ? `скорость <strong>${profile.wpm} wpm</strong> · обновить`
-    : `скорость не задана (160 wpm) · откалибровать`;
+    ? `Ваш темп: <strong>${profile.wpm} wpm</strong> · перекалибровать`
+    : `Темп не замерен — берём 160 wpm · откалибровать`;
   return `
     <button class="library__profile" data-action="calibrate" type="button">
       <span class="library__profile-icon" aria-hidden="true">${ICON_BOLT}</span>
@@ -182,8 +186,8 @@ function renderProfileBanner(profile) {
 function renderCard(script, wpm) {
   const hasTitle = !!script.title?.trim();
   const hasBody = !!script.body?.trim();
-  const title = hasTitle ? script.title.trim() : 'без названия';
-  const preview = hasBody ? makePreview(script.body) : 'пусто';
+  const title = hasTitle ? script.title.trim() : 'Без названия';
+  const preview = hasBody ? makePreview(script.body) : 'Пусто';
   const date = formatRelative(script.updatedAt);
   const wc = wordCount(script.body);
   const wcLabel = `${wc} ${wordsLabel(wc)}`;
@@ -306,12 +310,12 @@ function showUndoToast(root, script) {
   toast.className = 'library__undo-toast';
   toast.innerHTML = `
     <span class="library__undo-toast-icon" aria-hidden="true">${ICON_TRASH}</span>
-    <span class="library__undo-toast-text">удалено</span>
+    <span class="library__undo-toast-text">Удалено</span>
     <button
       class="library__undo-toast-button"
       data-action="undo"
       type="button"
-    >отменить</button>
+    >Вернуть</button>
     <div class="library__undo-toast-bar" aria-hidden="true"></div>
   `;
   section.appendChild(toast);
@@ -365,14 +369,14 @@ function triggerImport(root) {
       await renderLibrary(root);
       const parts = [];
       if (result.importedScripts > 0) {
-        parts.push(`импортировано: ${result.importedScripts}`);
+        parts.push(`Импортировано: ${result.importedScripts}`);
       }
       if (result.importedProfile) {
-        parts.push('калибровка');
+        parts.push('и калибровка');
       }
       const message = parts.length > 0
         ? parts.join(' · ')
-        : 'нечего импортировать';
+        : 'Импортировать нечего';
       showInfoToast(root, message);
     } catch (err) {
       showInfoToast(root, errorMessage(err), 'error');
@@ -402,26 +406,26 @@ function showInfoToast(root, text, variant = 'success') {
 }
 
 function errorMessage(err) {
-  if (!err) return 'неизвестная ошибка';
+  if (!err) return 'Неизвестная ошибка';
   return typeof err.message === 'string' ? err.message : String(err);
 }
 
 async function handleThemeToggle(currentTheme, root) {
   if (currentTheme === 'dark') {
     const ok = await showConfirmModal({
-      title: 'светлая тема?',
-      body: 'тёмная тема легче для глаз — особенно во время чтения с суфлёра. вы уверены?',
-      confirmLabel: 'включить светлую',
-      cancelLabel: 'оставить тёмную',
+      title: 'Светлая тема?',
+      body: 'Тёмная тема бережёт глаза — особенно когда читаете с экрана перед камерой. Точно переключаемся?',
+      confirmLabel: 'Включить светлую',
+      cancelLabel: 'Оставить тёмную',
     });
     if (!ok) return;
     await setTheme('light');
     document.documentElement.dataset.theme = 'light';
-    showInfoToast(root, 'тема: светлая');
+    showInfoToast(root, 'Светлая тема включена');
   } else {
     await setTheme('dark');
     document.documentElement.dataset.theme = 'dark';
-    showInfoToast(root, 'тема: тёмная');
+    showInfoToast(root, 'Снова в темноте');
   }
 }
 

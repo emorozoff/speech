@@ -68,7 +68,6 @@
   font-size: var(--fs-2xl);
   font-weight: var(--fw-semibold);
   letter-spacing: -0.02em;
-  text-transform: lowercase;
 }
 
 .onboarding__text {

@@ -30,9 +30,9 @@ export async function renderEditor(root, { id }) {
     }
     indicatorEl.dataset.state = state;
     if (state === 'saving') {
-      indicatorEl.textContent = 'сохраняем…';
+      indicatorEl.textContent = 'Сохраняем…';
     } else if (state === 'saved') {
-      indicatorEl.textContent = 'сохранено';
+      indicatorEl.textContent = 'Сохранено';
       indicatorTimer = setTimeout(() => {
         if (indicatorEl.dataset.state === 'saved') {
           indicatorEl.dataset.state = '';
@@ -104,13 +104,13 @@ export async function renderEditor(root, { id }) {
 async function pasteFromClipboard(textarea, onChange, setIndicator) {
   if (!navigator.clipboard || !navigator.clipboard.readText) {
     setIndicator?.('saving');
-    flashMessage(textarea, 'буфер обмена недоступен');
+    flashMessage(textarea, 'Буфер обмена недоступен');
     return;
   }
   try {
     const text = await navigator.clipboard.readText();
     if (!text) {
-      flashMessage(textarea, 'буфер пуст');
+      flashMessage(textarea, 'В буфере ничего нет');
       return;
     }
     const start = textarea.selectionStart ?? textarea.value.length;
@@ -122,7 +122,7 @@ async function pasteFromClipboard(textarea, onChange, setIndicator) {
     textarea.focus();
     onChange();
   } catch {
-    flashMessage(textarea, 'нажмите долго в текст → вставить');
+    flashMessage(textarea, 'Зажмите палец в поле и выберите «Вставить»');
   }
 }
 
@@ -154,7 +154,7 @@ function renderTemplate(state) {
           type="text"
           data-field="title"
           value="${escapeHtml(state.title)}"
-          placeholder="название"
+          placeholder="Название"
           autocomplete="off"
           spellcheck="false"
         />
@@ -173,7 +173,7 @@ function renderTemplate(state) {
         <textarea
           class="editor__body-input"
           data-field="body"
-          placeholder="вставьте сюда текст выступления"
+          placeholder="Сюда — текст выступления"
           autocomplete="off"
           autocorrect="off"
           autocapitalize="sentences"

@@ -257,7 +257,6 @@
   font-size: var(--fs-xl);
   font-weight: var(--fw-semibold);
   letter-spacing: -0.02em;
-  text-transform: lowercase;
 }
 
 .empty__subtitle {
