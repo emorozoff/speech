@@ -21,12 +21,12 @@ import {
 } from '../lib/screen.js';
 import { openSettings } from '../lib/settings-sheet.js';
 
-const FONT_SIZE_STEP = 4;
-const FONT_SIZE_MIN = 16;
-const FONT_SIZE_MAX = 128;
-const SPEED_STEP = 5;
+const FONT_SIZE_STEP = 2;
+const FONT_SIZE_MIN = 12;
+const FONT_SIZE_MAX = 52;
+const SPEED_STEP = 1;
 const SPEED_MIN = 1;
-const SPEED_MAX = 100;
+const SPEED_MAX = 20;
 const CONTROLS_HIDE_AFTER_MS = 2500;
 
 export async function renderPrompter(root, { id }) {

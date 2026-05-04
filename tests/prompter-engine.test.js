@@ -6,39 +6,46 @@ import {
   computeScrollStep,
 } from '../src/lib/prompter-engine.js';
 
-test('speedToPxPerSec: монотонный рост', () => {
-  assert.equal(speedToPxPerSec(1), 6.5);
-  assert.equal(speedToPxPerSec(30), 50);
-  assert.equal(speedToPxPerSec(100), 155);
-  assert.ok(speedToPxPerSec(50) > speedToPxPerSec(20));
+test('speedToPxPerSec: линейный, шкала [1..20]', () => {
+  assert.equal(speedToPxPerSec(1), 4);
+  assert.equal(speedToPxPerSec(10), 40);
+  assert.equal(speedToPxPerSec(20), 80);
+  assert.ok(speedToPxPerSec(15) > speedToPxPerSec(5));
 });
 
-test('computeScrollStep: накапливает дробную часть', () => {
+test('speedToPxPerSec: clamp за границами шкалы', () => {
+  // Старые скрипты могут содержать speed=50/100 — движок их клампит,
+  // а не разгоняется до 200 px/sec.
+  assert.equal(speedToPxPerSec(50), 80);
+  assert.equal(speedToPxPerSec(100), 80);
+  assert.equal(speedToPxPerSec(0), 4);
+  assert.equal(speedToPxPerSec(-5), 4);
+});
+
+test('computeScrollStep: накапливает дробную часть на низкой скорости', () => {
   let acc = 0;
-  // pxPerSec = 50 при speed=30. dt=0.016 → 0.8 px за кадр.
-  for (let i = 0; i < 5; i++) {
-    const step = computeScrollStep(0.016, 30, acc);
+  // pxPerSec = 20 при speed=5. dt=0.016 → 0.32 px за кадр —
+  // первые кадры delta=0, копится дробная часть.
+  for (let i = 0; i < 3; i++) {
+    const step = computeScrollStep(0.016, 5, acc);
     acc = step.accumulator;
-    if (i < 1) {
-      assert.equal(step.delta, 0, 'первый кадр пока 0 — копится дробная часть');
-    }
+    assert.equal(step.delta, 0, `кадр ${i}: пока копим, delta=0`);
   }
-  // После 5 кадров (0.08 сек) должны были скроллнуть ~4 px суммарно
 });
 
-test('computeScrollStep: после 1 секунды на скорости 30 — около 50 px', () => {
+test('computeScrollStep: за 1 секунду на скорости 10 → ~40 px', () => {
   let acc = 0;
   let total = 0;
   for (let i = 0; i < 60; i++) {
-    const step = computeScrollStep(1 / 60, 30, acc);
+    const step = computeScrollStep(1 / 60, 10, acc);
     total += step.delta;
     acc = step.accumulator;
   }
-  // ровно 50 (с округлением вниз дробной части)
-  assert.equal(total, 50);
+  // ±1 — допустимая floating-point погрешность накопления за 60 кадров
+  assert.ok(Math.abs(total - 40) <= 1, `total ${total} ≈ 40`);
 });
 
-test('computeScrollStep: на скорости 1 за секунду — около 6 px', () => {
+test('computeScrollStep: на скорости 1 за секунду — ~4 px', () => {
   let acc = 0;
   let total = 0;
   for (let i = 0; i < 60; i++) {
@@ -46,15 +53,15 @@ test('computeScrollStep: на скорости 1 за секунду — око�
     total += step.delta;
     acc = step.accumulator;
   }
-  assert.equal(total, 6);
+  assert.ok(Math.abs(total - 4) <= 1, `total ${total} ≈ 4`);
 });
 
 test('computeScrollStep: фрейм-рейт независимость', () => {
-  // 30 fps vs 60 fps — за ту же секунду скроллит одинаково
+  // 30 fps vs 60 fps — за ту же секунду скроллит одинаково.
   let acc60 = 0;
   let total60 = 0;
   for (let i = 0; i < 60; i++) {
-    const s = computeScrollStep(1 / 60, 50, acc60);
+    const s = computeScrollStep(1 / 60, 15, acc60);
     total60 += s.delta;
     acc60 = s.accumulator;
   }
@@ -62,7 +69,7 @@ test('computeScrollStep: фрейм-рейт независимость', () => 
   let acc30 = 0;
   let total30 = 0;
   for (let i = 0; i < 30; i++) {
-    const s = computeScrollStep(1 / 30, 50, acc30);
+    const s = computeScrollStep(1 / 30, 15, acc30);
     total30 += s.delta;
     acc30 = s.accumulator;
   }

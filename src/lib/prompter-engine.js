@@ -1,5 +1,9 @@
+// Шкала [1..20]. Линейный коэф 4 px/sec на шаг даёт диапазон [4..80] px/sec.
+// Clamp защищает движок от мусорных значений в storage (например, миграция
+// со старой шкалы [1..100]: значение 30 стало бы избыточно быстрым).
 export function speedToPxPerSec(setting) {
-  return setting * 1.5 + 5;
+  const clamped = Math.min(20, Math.max(1, Number(setting) || 1));
+  return clamped * 4;
 }
 
 export function computeScrollStep(dtSeconds, speedSetting, accumulator) {

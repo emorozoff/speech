@@ -2,9 +2,9 @@ import { escapeHtml } from './format.js';
 import { FONTS, getFontStack } from './fonts.js';
 
 const SLIDERS = [
-  { key: 'fontSize', label: 'размер шрифта', min: 16, max: 128, step: 1 },
+  { key: 'fontSize', label: 'размер шрифта', min: 12, max: 52, step: 1 },
   { key: 'textWidth', label: 'ширина текста', min: 40, max: 100, step: 5 },
-  { key: 'speed', label: 'скорость', min: 1, max: 100, step: 1 },
+  { key: 'speed', label: 'скорость', min: 1, max: 20, step: 1 },
   { key: 'lineHeight', label: 'межстрочный', min: 1, max: 2.5, step: 0.1 },
 ];
 

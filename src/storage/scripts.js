@@ -1,10 +1,10 @@
 import { STORE_SCRIPTS, dbGet, dbGetAll, dbPut, dbDelete } from './db.js';
 
 export const DEFAULT_SETTINGS = Object.freeze({
-  fontSize: 64,
+  fontSize: 40,
   font: 'system',
   textWidth: 90,
-  speed: 30,
+  speed: 12,
   lineHeight: 1.5,
   mirrorH: true,
   mirrorV: false,
