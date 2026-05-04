@@ -11,6 +11,7 @@ import './styles/onboarding.css';
 
 import * as scriptsApi from './storage/scripts.js';
 import { getTheme } from './storage/profile.js';
+import { seedDemoScriptIfFirstRun } from './storage/seed.js';
 import { route, notFound, navigate, start } from './lib/router.js';
 import { renderLibrary } from './views/library.js';
 import { renderEditor } from './views/editor.js';
@@ -38,16 +39,20 @@ route('/editor/:id', (params) => renderEditor(root, params));
 route('/prompter/:id', (params) => renderPrompter(root, params));
 notFound(() => navigate('/', { replace: true }));
 
-start();
-
 // shouldShowOnboarding должен сработать ДО checkForUpdate,
 // потому что checkForUpdate сам пишет lastSeenVersion в storage
 // и тем самым «закрашивает» состояние «совсем первый запуск».
 const showFirstRun = shouldShowOnboarding();
 const updateInfo = checkForUpdate();
 
-if (showFirstRun) {
-  showOnboarding();
-} else if (updateInfo.isUpdate) {
-  showUpdatePopup({ previousVersion: updateInfo.previousVersion });
-}
+// Демо-скрипт сеется ДО первого рендера библиотеки, иначе
+// пользователь увидит пустое состояние, а потом скрипт «появится».
+seedDemoScriptIfFirstRun().finally(() => {
+  start();
+
+  if (showFirstRun) {
+    showOnboarding();
+  } else if (updateInfo.isUpdate) {
+    showUpdatePopup({ previousVersion: updateInfo.previousVersion });
+  }
+});

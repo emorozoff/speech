@@ -37,7 +37,8 @@ export async function renderPrompter(root, { id }) {
   }
 
   const settings = { ...DEFAULT_SETTINGS, ...(script.settings ?? {}) };
-  const wpm = profile?.wpm ?? DEFAULT_WPM;
+  // Защита от испорченного профиля (wpm: 0 ломал бы расчёт времени).
+  const wpm = Math.max(1, profile?.wpm ?? DEFAULT_WPM);
   let isPlaying = false;
   let wakeLock = null;
   let controlsTimer = null;
@@ -200,6 +201,14 @@ export async function renderPrompter(root, { id }) {
     }
   };
 
+  const hideControlsImmediately = () => {
+    if (controlsTimer) {
+      clearTimeout(controlsTimer);
+      controlsTimer = null;
+    }
+    section.classList.add('prompter--idle');
+  };
+
   const acquireScreenLocks = async () => {
     if (wakeLock) return;
     try {
@@ -327,6 +336,9 @@ export async function renderPrompter(root, { id }) {
         currentWordIdx = idx;
         setCurrentWord(idx);
         scrollToWord(idx);
+        // Диктовка пошла — UI прячется сразу, чтобы не отвлекать.
+        // Контролы вернутся по тапу.
+        hideControlsImmediately();
       },
       onCommand: (cmd) => handleCommand(cmd),
       onStateChange: () => {
@@ -566,7 +578,12 @@ export async function renderPrompter(root, { id }) {
       voice = null;
     }
     if (controlsTimer) clearTimeout(controlsTimer);
+    if (showCommandToast._timer) {
+      clearTimeout(showCommandToast._timer);
+      showCommandToast._timer = null;
+    }
     window.removeEventListener('resize', updatePadding);
+    window.removeEventListener('hashchange', onHashChange);
     document.removeEventListener('visibilitychange', onVisibility);
     viewport.removeEventListener('scroll', updateProgressAndTimer);
     if (wakeLock) {
@@ -596,7 +613,17 @@ export async function renderPrompter(root, { id }) {
     if (document.hidden && isPlaying) pause();
   }
 
+  // Если пользователь нажмёт «назад» в браузере, exit() не вызовется
+  // и engine/voice/wakeLock останутся висеть. Ловим hashchange и чистим.
+  function onHashChange() {
+    const path = window.location.hash.slice(1);
+    if (!path.startsWith(`/prompter/${id}`)) {
+      cleanup();
+    }
+  }
+
   window.addEventListener('resize', updatePadding);
+  window.addEventListener('hashchange', onHashChange);
   document.addEventListener('visibilitychange', onVisibility);
   viewport.addEventListener('scroll', updateProgressAndTimer, { passive: true });
 

@@ -264,7 +264,11 @@ function toggleMenu(button, id, items, onAction) {
 
   openMenu = menu;
 
-  setTimeout(() => {
+  // Таймаут нужен чтобы текущий клик-event (по которому открывается меню)
+  // не был тут же поглощён dismiss-обработчиком ниже. Ссылку держим, чтобы
+  // closeMenu(), вызванный сразу же, не оставил dismiss-listener висеть.
+  menu._openTimer = setTimeout(() => {
+    menu._openTimer = null;
     menu.classList.add('menu--open');
     document.addEventListener('click', dismiss);
   }, 0);
@@ -272,6 +276,10 @@ function toggleMenu(button, id, items, onAction) {
 
 function closeMenu() {
   if (!openMenu) return;
+  if (openMenu._openTimer) {
+    clearTimeout(openMenu._openTimer);
+    openMenu._openTimer = null;
+  }
   if (openMenu._dismiss) {
     document.removeEventListener('click', openMenu._dismiss);
   }

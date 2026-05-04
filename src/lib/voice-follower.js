@@ -180,6 +180,12 @@ export class VoiceFollower {
 
   _heartbeatTick() {
     if (!this.shouldRun) return;
+    // На паузе пользователь молчит специально — не считаем это «застряло».
+    // Сбрасываем таймер, чтобы не дёргать recognition зря.
+    if (this.followPaused) {
+      this._lastResultTime = Date.now();
+      return;
+    }
     const elapsed = Date.now() - this._lastResultTime;
     if (elapsed < HEARTBEAT_TIMEOUT_MS) return;
     // Recognition «застрял» — ни onresult, ни onend больше HEARTBEAT_TIMEOUT_MS.
