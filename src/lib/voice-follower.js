@@ -1,10 +1,15 @@
 import { createRecognition } from './recognition.js';
-import { tokenize, findBestPosition } from './voice-matching.js';
+import { tokenize, findBestPositionInRange } from './voice-matching.js';
 import { detectCommand } from './voice-commands.js';
 
 const BUFFER_SIZE = 5;
 const LOOKAHEAD = 30;
+const LOOKBACK = 50;
 const MATCH_THRESHOLD = 0.4;
+// Для прыжка назад нужен заметно более уверенный матч + минимум разных
+// слов (иначе повторение «и… и… и…» утащит в начало скрипта).
+const BACKWARD_THRESHOLD = 0.7;
+const MIN_UNIQUE_FOR_BACKWARD = 3;
 const RESTART_DELAY_MS = 250;
 const COMMAND_COOLDOWN_MS = 2000;
 // iOS Safari иногда «тихо» закрывает recognition: onend не приходит,
@@ -121,16 +126,38 @@ export class VoiceFollower {
 
     this.recentWords = words.slice(-BUFFER_SIZE);
 
-    const { pos, score } = findBestPosition(
+    // Forward имеет приоритет: если впереди есть нормальный матч —
+    // продолжаем как обычно. Это покрывает 99% сценариев и защищает
+    // от ложных прыжков назад при импровизации.
+    const forward = findBestPositionInRange(
       this.scriptTokens,
       this.recentWords,
       this.cursor,
-      LOOKAHEAD,
+      this.cursor + LOOKAHEAD,
     );
 
-    if (score >= MATCH_THRESHOLD && pos >= this.cursor) {
-      this.cursor = pos;
-      this.onPosition(pos, score);
+    if (forward.score >= MATCH_THRESHOLD) {
+      this.cursor = forward.pos;
+      this.onPosition(forward.pos, forward.score);
+      return;
+    }
+
+    // Forward провалился — пробуем уйти назад. Высокий порог + минимум
+    // уникальных слов отсекают повторы коротких слов и совпадения по
+    // одному «и» / «но» / «это».
+    if (this.cursor === 0) return;
+    const backward = findBestPositionInRange(
+      this.scriptTokens,
+      this.recentWords,
+      Math.max(0, this.cursor - LOOKBACK),
+      this.cursor,
+    );
+    if (
+      backward.score >= BACKWARD_THRESHOLD &&
+      backward.unique >= MIN_UNIQUE_FOR_BACKWARD
+    ) {
+      this.cursor = backward.pos;
+      this.onPosition(backward.pos, backward.score);
     }
   }
 

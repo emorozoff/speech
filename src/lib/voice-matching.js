@@ -47,25 +47,68 @@ export function scoreAlignment(scriptTokens, recognizedBuffer, hypothesizedEnd) 
   return matches / recognizedBuffer.length;
 }
 
+// Внутренняя версия: дополнительно считает количество УНИКАЛЬНЫХ совпавших
+// слов из буфера. Это нужно для backward-прыжков, где «4 раза слово "и"» —
+// плохой сигнал, а «4 разных слова подряд» — уверенное совпадение.
+function alignmentDetail(scriptTokens, recognizedBuffer, hypothesizedEnd) {
+  if (recognizedBuffer.length === 0) return { score: 0, unique: 0 };
+  let matches = 0;
+  const uniqueWords = new Set();
+  for (let i = 0; i < recognizedBuffer.length; i++) {
+    const scriptIdx = hypothesizedEnd - recognizedBuffer.length + 1 + i;
+    if (scriptIdx < 0 || scriptIdx >= scriptTokens.length) continue;
+    if (wordsMatch(recognizedBuffer[i], scriptTokens[scriptIdx])) {
+      matches++;
+      uniqueWords.add(recognizedBuffer[i]);
+    }
+  }
+  return {
+    score: matches / recognizedBuffer.length,
+    unique: uniqueWords.size,
+  };
+}
+
+// Ищет лучшую позицию конца буфера в полуоткрытом диапазоне [startIdx, endIdx).
+// Возвращает { pos, score, unique }.
+export function findBestPositionInRange(
+  scriptTokens,
+  recognizedBuffer,
+  startIdx,
+  endIdx,
+) {
+  const start = Math.max(0, startIdx);
+  const end = Math.min(endIdx, scriptTokens.length);
+  if (
+    recognizedBuffer.length === 0 ||
+    scriptTokens.length === 0 ||
+    start >= end
+  ) {
+    return { pos: start, score: 0, unique: 0 };
+  }
+  let bestPos = start;
+  let bestScore = 0;
+  let bestUnique = 0;
+  for (let p = start; p < end; p++) {
+    const { score, unique } = alignmentDetail(scriptTokens, recognizedBuffer, p);
+    if (score > bestScore) {
+      bestScore = score;
+      bestPos = p;
+      bestUnique = unique;
+    }
+  }
+  return { pos: bestPos, score: bestScore, unique: bestUnique };
+}
+
 export function findBestPosition(
   scriptTokens,
   recognizedBuffer,
   cursor,
   lookahead,
 ) {
-  if (recognizedBuffer.length === 0 || scriptTokens.length === 0) {
-    return { pos: cursor, score: 0 };
-  }
-  const start = Math.max(0, cursor);
-  const end = Math.min(cursor + lookahead, scriptTokens.length);
-  let bestPos = cursor;
-  let bestScore = 0;
-  for (let p = start; p < end; p++) {
-    const score = scoreAlignment(scriptTokens, recognizedBuffer, p);
-    if (score > bestScore) {
-      bestScore = score;
-      bestPos = p;
-    }
-  }
-  return { pos: bestPos, score: bestScore };
+  return findBestPositionInRange(
+    scriptTokens,
+    recognizedBuffer,
+    cursor,
+    cursor + lookahead,
+  );
 }

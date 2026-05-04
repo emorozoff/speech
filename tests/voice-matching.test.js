@@ -7,6 +7,7 @@ import {
   wordsMatch,
   scoreAlignment,
   findBestPosition,
+  findBestPositionInRange,
 } from '../src/lib/voice-matching.js';
 
 test('tokenize: русский, нижний регистр, ё→е, без пунктуации', () => {
@@ -102,4 +103,49 @@ test('findBestPosition: пустой скрипт', () => {
 test('findBestPosition: пустой буфер', () => {
   const result = findBestPosition(['а', 'б'], [], 0, 20);
   assert.equal(result.score, 0);
+});
+
+test('findBestPositionInRange: возвращает unique = число разных совпавших слов', () => {
+  const script = tokenize('один два три четыре пять');
+  const buffer = tokenize('два три четыре');
+  const r = findBestPositionInRange(script, buffer, 0, 5);
+  assert.equal(r.unique, 3);
+  assert.ok(r.score >= 0.99);
+});
+
+test('findBestPositionInRange: повтор одного слова даёт unique=1', () => {
+  // буфер из одинаковых слов даже при идеальном score нечитаем как
+  // «осмысленный кусок» — для backward jump unique=1 не должно проходить.
+  const script = tokenize('а а а а а конец');
+  const buffer = ['а', 'а', 'а', 'а', 'а'];
+  const r = findBestPositionInRange(script, buffer, 0, 6);
+  assert.equal(r.unique, 1);
+});
+
+test('findBestPositionInRange: пустой диапазон → score=0', () => {
+  const r = findBestPositionInRange(['а', 'б', 'в'], ['а'], 5, 5);
+  assert.equal(r.score, 0);
+  assert.equal(r.unique, 0);
+});
+
+test('findBestPositionInRange: backward сценарий — возвращение в прошлый абзац', () => {
+  // Имитируем длинный скрипт. Пользователь был на cursor=20, но начал
+  // читать с позиции 5. Поиск в окне [0, 20) должен найти match.
+  const script = tokenize(
+    'когда я был молодым ещё ничего не знал о жизни и думал что всё будет ' +
+      'легко и просто но потом оказалось всё сложнее многое пришлось переосмыслить',
+  );
+  const buffer = tokenize('я был молодым ещё ничего');
+  const cursor = 20;
+  const r = findBestPositionInRange(script, buffer, 0, cursor);
+  assert.ok(r.score >= 0.7, `score ${r.score}`);
+  assert.ok(r.unique >= 3, `unique ${r.unique}`);
+  assert.ok(r.pos < cursor, 'найдена позиция назад');
+});
+
+test('findBestPositionInRange: импровизация — низкий score, не триггерит backward', () => {
+  const script = tokenize('один два три четыре пять шесть семь восемь девять десять');
+  const buffer = tokenize('кошка собака бегает');
+  const r = findBestPositionInRange(script, buffer, 0, 10);
+  assert.ok(r.score < 0.4, `score ${r.score} должен быть низкий`);
 });
