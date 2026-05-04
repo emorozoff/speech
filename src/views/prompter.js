@@ -431,12 +431,6 @@ export async function renderPrompter(root, { id }) {
       case 'reset':
         reset();
         break;
-      case 'speedUp':
-        adjustSpeed(SPEED_STEP);
-        break;
-      case 'speedDown':
-        adjustSpeed(-SPEED_STEP);
-        break;
       case 'fontUp':
         adjustFontSize(FONT_SIZE_STEP);
         break;

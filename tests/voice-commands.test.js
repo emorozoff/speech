@@ -75,9 +75,13 @@ test('detectCommand: суфлер сначала → reset', () => {
   assert.equal(detectCommand(tokenize('суфлёр заново')).action, 'reset');
 });
 
-test('detectCommand: суфлер быстрее / медленнее', () => {
-  assert.equal(detectCommand(tokenize('суфлёр быстрее')).action, 'speedUp');
-  assert.equal(detectCommand(tokenize('суфлёр медленнее')).action, 'speedDown');
+test('detectCommand: команды скорости отключены — пользователь крутит пальцами', () => {
+  // Скорость регулируется тапами в зонах суфлёра или sliderом в настройках,
+  // а в голосовом режиме текст и так подстраивается под темп речи.
+  // Если кто-то скажет «суфлёр быстрее» — ничего не должно произойти.
+  assert.equal(detectCommand(tokenize('суфлёр быстрее')), null);
+  assert.equal(detectCommand(tokenize('суфлёр медленнее')), null);
+  assert.equal(detectCommand(tokenize('суфлёр скорее')), null);
 });
 
 test('detectCommand: суфлер больше / меньше', () => {
