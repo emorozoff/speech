@@ -176,7 +176,10 @@ function renderList(scripts, profile, wpm) {
 }
 
 function renderProfileBanner(profile) {
-  const tempText = profile
+  // profile?.wpm, а не profile — потому что setTheme мог создать
+  // запись профиля без wpm (если пользователь переключил тему до
+  // калибровки темпа). Раньше показывалось «undefined wpm».
+  const tempText = profile?.wpm
     ? `<strong>${profile.wpm} wpm</strong>`
     : `Замерить темп`;
   return `

@@ -7,15 +7,20 @@ const WAKE_WORDS = ['суфлер', 'speech'];
 
 const SINGLE_COMMANDS = {
   стоп: { action: 'pause' },
+  стой: { action: 'pause' },
   пауза: { action: 'pause' },
+  замри: { action: 'pause' },
   старт: { action: 'play' },
   играй: { action: 'play' },
   играть: { action: 'play' },
   плей: { action: 'play' },
   слушай: { action: 'play' },
   поехали: { action: 'play' },
+  вперед: { action: 'play' },
+  продолжай: { action: 'play' },
   сначала: { action: 'reset' },
   заново: { action: 'reset' },
+  начало: { action: 'reset' },
   больше: { action: 'fontUp' },
   крупнее: { action: 'fontUp' },
   меньше: { action: 'fontDown' },
@@ -26,13 +31,23 @@ const SINGLE_COMMANDS = {
 // Удвоение почти не встречается в живой речи, поэтому ложные срабатывания
 // маловероятны, а пользователю проще сказать «стоп стоп», чем выдавливать
 // «суфлёр стоп».
+//
+// Намеренно не добавляем тут «давай», «хватит», «тише» — это слишком
+// частые удвоения в обычной речи, словили бы false-positive.
 const DOUBLE_COMMANDS = {
   стоп: { action: 'pause' },
+  стой: { action: 'pause' },
   пауза: { action: 'pause' },
+  замри: { action: 'pause' },
   старт: { action: 'play' },
   поехали: { action: 'play' },
+  вперед: { action: 'play' },
+  слушай: { action: 'play' },
+  играй: { action: 'play' },
+  продолжай: { action: 'play' },
   сначала: { action: 'reset' },
   заново: { action: 'reset' },
+  начало: { action: 'reset' },
 };
 
 function isWakeWord(token) {

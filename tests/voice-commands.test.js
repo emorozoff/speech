@@ -177,3 +177,24 @@ test('detectCommand: толерантность к опечаткам wake-сл�
   assert.equal(detectCommand(tokenize('сюрфлер стоп'))?.action, 'pause');
   assert.equal(detectCommand(tokenize('суфлеро стоп'))?.action, 'pause');
 });
+
+test('detectCommand: расширенный набор удвоений для pause', () => {
+  // Если пользователь предпочитает другое слово — пусть ловится.
+  assert.equal(detectCommand(tokenize('стой стой')).action, 'pause');
+  assert.equal(detectCommand(tokenize('замри замри')).action, 'pause');
+});
+
+test('detectCommand: расширенный набор удвоений для play', () => {
+  assert.equal(detectCommand(tokenize('вперёд вперёд')).action, 'play');
+  assert.equal(detectCommand(tokenize('слушай слушай')).action, 'play');
+  assert.equal(detectCommand(tokenize('играй играй')).action, 'play');
+  assert.equal(detectCommand(tokenize('продолжай продолжай')).action, 'play');
+});
+
+test('detectCommand: расширенный набор удвоений для reset', () => {
+  assert.equal(detectCommand(tokenize('начало начало')).action, 'reset');
+});
+
+test('detectCommand: «давай давай» НЕ команда — слишком частое в речи', () => {
+  assert.equal(detectCommand(tokenize('давай давай')), null);
+});

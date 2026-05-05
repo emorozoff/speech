@@ -1,7 +1,7 @@
 {
   "name": "speech",
   "private": true,
-  "version": "1.13.1",
+  "version": "1.13.2",
   "type": "module",
   "description": "Minimalist web teleprompter PWA for iPhone",
   "scripts": {
