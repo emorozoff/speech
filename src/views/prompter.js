@@ -59,15 +59,13 @@ export async function renderPrompter(root, { id }) {
   const currentLen = (script.body ?? '').length;
   const lengthDrift = storedLen > 0 && Math.abs(currentLen - storedLen) > Math.max(50, currentLen * 0.1);
   let canResume = stored >= 0.05 && stored < 0.98 && !lengthDrift;
-  const resumePercent = Math.max(1, Math.round(stored * 100));
 
   const persistSettings = debounce(async () => {
     await updateScript(id, { settings });
   }, 500);
 
-  root.innerHTML = renderTemplate(script, settings, { canResume, resumePercent });
+  root.innerHTML = renderTemplate(script, settings);
   const section = root.firstElementChild;
-  section.classList.add('prompter--not-started');
 
   const viewport = section.querySelector('[data-role="viewport"]');
   const padTop = section.querySelector('[data-role="pad-top"]');
@@ -79,8 +77,6 @@ export async function renderPrompter(root, { id }) {
   const mirrorButton = section.querySelector('[data-action="toggle-mirror"]');
   const lineButton = section.querySelector('[data-action="toggle-line"]');
   const voiceButton = section.querySelector('[data-action="toggle-voice"]');
-  const introIcon = section.querySelector('[data-role="intro-icon"]');
-  const introLabel = section.querySelector('[data-role="intro-label"]');
   const progressTopEl = section.querySelector('[data-role="progress-top"]');
   const progressBottomEl = section.querySelector('[data-role="progress-bottom"]');
   const timerEl = section.querySelector('[data-role="timer"]');
@@ -154,9 +150,15 @@ export async function renderPrompter(root, { id }) {
   applyVisualSettings(section, viewport, settings);
   applyShiftTransform();
   syncToggleStates({ mirrorButton, lineButton, voiceButton, settings });
-  syncIntroLabel();
   updatePadding();
   updateProgressAndTimer();
+
+  // Если есть валидная сохранённая позиция — сразу её применяем.
+  // requestAnimationFrame нужен, чтобы дождаться layout
+  // (scrollHeight доступен только после первого браузерного фрейма).
+  if (canResume) {
+    requestAnimationFrame(() => applyResume());
+  }
 
   function updateProgressAndTimer() {
     const max = viewport.scrollHeight - viewport.clientHeight;
@@ -171,17 +173,6 @@ export async function renderPrompter(root, { id }) {
     if (isPlaying && progress > 0) persistPosition();
   }
 
-  function syncIntroLabel() {
-    if (!introIcon || !introLabel) return;
-    introIcon.innerHTML = settings.voiceFollow ? ICON_MIC_LARGE : ICON_PLAY_LARGE;
-    if (canResume) {
-      introLabel.textContent = `Продолжить · ${resumePercent}%`;
-    } else {
-      introLabel.textContent = settings.voiceFollow
-        ? 'Поехали с голосом'
-        : 'Поехали';
-    }
-  }
 
   function syncVoiceListening() {
     if (!voiceButton) return;
@@ -246,7 +237,6 @@ export async function renderPrompter(root, { id }) {
     if (isPlaying) return;
     isPlaying = true;
     section.classList.add('prompter--playing');
-    section.classList.remove('prompter--not-started');
     await acquireScreenLocks();
     if (settings.voiceFollow) {
       if (!voice) await enableVoice();
@@ -366,7 +356,6 @@ export async function renderPrompter(root, { id }) {
     if (!isSpeechSupported()) {
       settings.voiceFollow = false;
       syncToggleStates({ mirrorButton, lineButton, voiceButton, settings });
-      syncIntroLabel();
       showVoiceErrorOverlay({
         title: 'Распознавание речи недоступно',
         body: 'Этот браузер не умеет распознавать речь. Откройте speech в Safari на iPhone — там работает.',
@@ -401,7 +390,6 @@ export async function renderPrompter(root, { id }) {
         section.classList.remove('prompter--playing');
         syncToggleStates({ mirrorButton, lineButton, voiceButton, settings });
         syncVoiceListening();
-        syncIntroLabel();
         persistSettings();
         if (code === 'permission-denied') {
           showVoiceErrorOverlay({
@@ -553,7 +541,6 @@ export async function renderPrompter(root, { id }) {
             disableVoice();
           }
           syncToggleStates({ mirrorButton, lineButton, voiceButton, settings });
-          syncIntroLabel();
         }
         persistSettings();
       },
@@ -573,7 +560,6 @@ export async function renderPrompter(root, { id }) {
       disableVoice();
     }
     syncToggleStates({ mirrorButton, lineButton, voiceButton, settings });
-    syncIntroLabel();
     persistSettings();
   };
 
@@ -676,23 +662,6 @@ export async function renderPrompter(root, { id }) {
 
   section.addEventListener('click', async (e) => {
     const action = e.target.closest('[data-action]')?.dataset.action;
-    if (action === 'intro-start') {
-      e.preventDefault();
-      e.stopPropagation();
-      if (canResume) applyResume();
-      await play();
-      return;
-    }
-    if (action === 'intro-restart') {
-      e.preventDefault();
-      e.stopPropagation();
-      await clearStoredPosition();
-      currentWordIdx = 0;
-      setCurrentWord(0);
-      viewport.scrollTop = 0;
-      await play();
-      return;
-    }
     if (action === 'play') {
       await togglePlay();
     } else if (action === 'reset') {
@@ -833,7 +802,7 @@ function renderBodyWithWords(body) {
   return out.join('');
 }
 
-function renderTemplate(script, settings, resume) {
+function renderTemplate(script, settings) {
   const body = script.body || '';
   return `
     <section class="prompter">
@@ -881,26 +850,6 @@ function renderTemplate(script, settings, resume) {
       <div class="prompter__zone-hint prompter__zone-hint--right" aria-hidden="true">›</div>
 
       <div class="prompter__command-toast" data-role="command-toast" role="status" aria-live="polite"></div>
-
-      <div class="prompter__intro" data-role="intro">
-        <button class="prompter__intro-button" data-action="intro-start">
-          <span class="prompter__intro-icon" data-role="intro-icon"></span>
-          <span class="prompter__intro-label" data-role="intro-label"></span>
-        </button>
-        ${
-          resume.canResume
-            ? `<button
-                class="prompter__intro-secondary"
-                data-action="intro-restart"
-                type="button"
-              >Начать сначала</button>`
-            : ''
-        }
-        <p class="prompter__intro-hint">
-          Разрешите микрофон при первом запуске.<br/>
-          Голосом: <strong>«стоп стоп»</strong> и <strong>«старт старт»</strong>
-        </p>
-      </div>
 
       <div class="prompter__controls" data-role="controls">
         <div class="prompter__group prompter__group--utility">
