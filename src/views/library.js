@@ -29,6 +29,7 @@ import {
   importLibrary,
 } from '../lib/backup.js';
 import { showConfirmModal } from '../lib/confirm-modal.js';
+import { showFeedbackModal } from '../lib/feedback-modal.js';
 import { showHelp } from './help.js';
 
 let openMenu = null;
@@ -47,6 +48,7 @@ function topbarMenuItems(theme) {
       action: 'theme-toggle',
       label: theme === 'light' ? 'Тёмная тема' : 'Светлая тема',
     },
+    { action: 'feedback', label: 'Обратная связь' },
   ];
 }
 
@@ -113,6 +115,8 @@ export async function renderLibrary(root) {
           triggerImport(root);
         } else if (chosen === 'theme-toggle') {
           await handleThemeToggle(currentTheme, root);
+        } else if (chosen === 'feedback') {
+          showFeedbackModal();
         }
       });
     }
