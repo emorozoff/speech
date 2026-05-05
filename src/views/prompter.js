@@ -27,7 +27,7 @@ const FONT_SIZE_MAX = 52;
 const SPEED_STEP = 1;
 const SPEED_MIN = 1;
 const SPEED_MAX = 20;
-const TEXT_OFFSET_STEP = 50;
+const TEXT_OFFSET_STEP = 30;
 const TEXT_OFFSET_MAX = 200;
 const CONTROLS_HIDE_AFTER_MS = 2500;
 
@@ -102,16 +102,16 @@ export async function renderPrompter(root, { id }) {
 
   // Совмещаем sub-pixel сдвиг от движка (накопленный остаток за кадр)
   // и горизонтальный offset, который пользователь крутит зон-тапами.
-  // При mirrorH визуальное направление инвертировано — пользователь
-  // смотрит в зеркало, и «вправо» в кадре соответствует «влево» в DOM.
+  // Сдвиг применяется напрямую — пользователь смотрит на физический
+  // экран и ожидает «тап справа → текст вправо», независимо от того,
+  // включено ли зеркало.
   let currentSubPixel = 0;
   function applyShiftTransform() {
     const offset = settings.textOffset ?? 0;
-    const visualX = settings.mirrorH ? -offset : offset;
-    if (visualX === 0 && currentSubPixel === 0) {
+    if (offset === 0 && currentSubPixel === 0) {
       shiftEl.style.transform = '';
     } else {
-      shiftEl.style.transform = `translate3d(${visualX}px, ${-currentSubPixel}px, 0)`;
+      shiftEl.style.transform = `translate3d(${offset}px, ${-currentSubPixel}px, 0)`;
     }
   }
 
@@ -337,7 +337,6 @@ export async function renderPrompter(root, { id }) {
   const toggleMirror = () => {
     settings.mirrorH = !settings.mirrorH;
     applyVisualSettings(section, viewport, settings);
-    applyShiftTransform();
     syncToggleStates({ mirrorButton, lineButton, voiceButton, settings });
     persistSettings();
   };
@@ -523,7 +522,6 @@ export async function renderPrompter(root, { id }) {
           key === 'readingLine'
         ) {
           applyVisualSettings(section, viewport, settings);
-          if (key === 'mirrorH') applyShiftTransform();
           syncToggleStates({ mirrorButton, lineButton, voiceButton, settings });
         } else if (key === 'readingLinePosition') {
           applyReadingLinePosition();
