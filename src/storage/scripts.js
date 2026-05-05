@@ -4,6 +4,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   fontSize: 40,
   font: 'system',
   textWidth: 90,
+  textOffset: 0,
   speed: 12,
   lineHeight: 1.5,
   mirrorH: true,

@@ -34,12 +34,12 @@ const GESTURES = [
   {
     iconKey: 'tap-left',
     title: 'Тап слева',
-    desc: 'Замедлить текст на один шаг.',
+    desc: 'Сдвинуть текст влево на шаг — удобно подвинуть его под лицо в кадре.',
   },
   {
     iconKey: 'tap-right',
     title: 'Тап справа',
-    desc: 'Ускорить текст на один шаг.',
+    desc: 'Сдвинуть текст вправо на шаг.',
   },
   {
     iconKey: 'tap-center',
@@ -207,14 +207,14 @@ const GESTURE_ICONS = {
     <svg viewBox="0 0 32 32" width="28" height="28" aria-hidden="true" fill="none">
       <rect x="3" y="3" width="26" height="26" rx="5" stroke="currentColor" stroke-width="1.6"/>
       <circle cx="10" cy="16" r="3" fill="currentColor"/>
-      <path d="M19 13l-3 3 3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M22 13l-4 3 4 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
   `,
   'tap-right': `
     <svg viewBox="0 0 32 32" width="28" height="28" aria-hidden="true" fill="none">
       <rect x="3" y="3" width="26" height="26" rx="5" stroke="currentColor" stroke-width="1.6"/>
       <circle cx="22" cy="16" r="3" fill="currentColor"/>
-      <path d="M13 13l3 3-3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M10 13l4 3-4 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
   `,
   'tap-center': `

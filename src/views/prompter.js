@@ -27,6 +27,8 @@ const FONT_SIZE_MAX = 52;
 const SPEED_STEP = 1;
 const SPEED_MIN = 1;
 const SPEED_MAX = 20;
+const TEXT_OFFSET_STEP = 50;
+const TEXT_OFFSET_MAX = 200;
 const CONTROLS_HIDE_AFTER_MS = 2500;
 
 export async function renderPrompter(root, { id }) {
@@ -98,6 +100,21 @@ export async function renderPrompter(root, { id }) {
     await setLastPosition(id, 0, currentLen);
   };
 
+  // Совмещаем sub-pixel сдвиг от движка (накопленный остаток за кадр)
+  // и горизонтальный offset, который пользователь крутит зон-тапами.
+  // При mirrorH визуальное направление инвертировано — пользователь
+  // смотрит в зеркало, и «вправо» в кадре соответствует «влево» в DOM.
+  let currentSubPixel = 0;
+  function applyShiftTransform() {
+    const offset = settings.textOffset ?? 0;
+    const visualX = settings.mirrorH ? -offset : offset;
+    if (visualX === 0 && currentSubPixel === 0) {
+      shiftEl.style.transform = '';
+    } else {
+      shiftEl.style.transform = `translate3d(${visualX}px, ${-currentSubPixel}px, 0)`;
+    }
+  }
+
   function findWordIndexAtScroll(scrollTop) {
     const target = scrollTop + viewport.clientHeight * readingLineRatio();
     for (let i = 0; i < wordElements.length; i++) {
@@ -133,6 +150,7 @@ export async function renderPrompter(root, { id }) {
   applyReadingLinePosition();
   applyTextSettings(textEl, settings);
   applyVisualSettings(section, viewport, settings);
+  applyShiftTransform();
   syncToggleStates({ mirrorButton, lineButton, voiceButton, settings });
   syncIntroLabel();
   updatePadding();
@@ -176,9 +194,8 @@ export async function renderPrompter(root, { id }) {
 
   const engine = new ScrollEngine(viewport, settings.speed, {
     onFrame: (subPixel) => {
-      shiftEl.style.transform = subPixel > 0
-        ? `translate3d(0, -${subPixel}px, 0)`
-        : '';
+      currentSubPixel = subPixel;
+      applyShiftTransform();
     },
   });
   engine.onEnd = async () => {
@@ -289,6 +306,18 @@ export async function renderPrompter(root, { id }) {
     persistSettings();
   };
 
+  const adjustTextOffset = (delta) => {
+    const next = clamp(
+      (settings.textOffset ?? 0) + delta,
+      -TEXT_OFFSET_MAX,
+      TEXT_OFFSET_MAX,
+    );
+    if (next === settings.textOffset) return;
+    settings.textOffset = next;
+    applyShiftTransform();
+    persistSettings();
+  };
+
   const adjustFontSize = (delta) => {
     settings.fontSize = clamp(
       settings.fontSize + delta,
@@ -308,6 +337,7 @@ export async function renderPrompter(root, { id }) {
   const toggleMirror = () => {
     settings.mirrorH = !settings.mirrorH;
     applyVisualSettings(section, viewport, settings);
+    applyShiftTransform();
     syncToggleStates({ mirrorButton, lineButton, voiceButton, settings });
     persistSettings();
   };
@@ -493,6 +523,7 @@ export async function renderPrompter(root, { id }) {
           key === 'readingLine'
         ) {
           applyVisualSettings(section, viewport, settings);
+          if (key === 'mirrorH') applyShiftTransform();
           syncToggleStates({ mirrorButton, lineButton, voiceButton, settings });
         } else if (key === 'readingLinePosition') {
           applyReadingLinePosition();
@@ -553,9 +584,11 @@ export async function renderPrompter(root, { id }) {
   function scrollToWord(idx, durationMs = 250) {
     const word = wordElements[idx];
     if (!word) return;
-    // Сбрасываем sub-pixel offset, иначе smooth-scroller считает позицию
+    // Сбрасываем sub-pixel остаток, иначе smooth-scroller считает позицию
     // по «дрейфующему» базису и слово окажется не на линии чтения.
-    shiftEl.style.transform = '';
+    // Горизонтальный offset сохраняется — он не влияет на расчёт scrollTop.
+    currentSubPixel = 0;
+    applyShiftTransform();
     const wordRect = word.getBoundingClientRect();
     const viewportRect = viewport.getBoundingClientRect();
     const wordCenter =
@@ -685,12 +718,15 @@ export async function renderPrompter(root, { id }) {
     } else if (e.target.closest('[data-role="controls"]')) {
       showControls();
     } else {
+      // Боковые зоны двигают текст по горизонтали — удобно сдвинуть его
+      // под лицо в кадре, не залезая в настройки. Скорость регулируется
+      // только через controls bar или голос (в voice-режиме — автоматически).
       const rect = section.getBoundingClientRect();
       const ratio = (e.clientX - rect.left) / rect.width;
       if (ratio < 0.25) {
-        adjustSpeed(-SPEED_STEP);
+        adjustTextOffset(-TEXT_OFFSET_STEP);
       } else if (ratio > 0.75) {
-        adjustSpeed(SPEED_STEP);
+        adjustTextOffset(TEXT_OFFSET_STEP);
       }
       showControls();
     }
@@ -799,8 +835,8 @@ function renderTemplate(script, settings, resume) {
         aria-label="настройки"
       >${ICON_GEAR}</button>
 
-      <div class="prompter__zone-hint prompter__zone-hint--left" aria-hidden="true">−</div>
-      <div class="prompter__zone-hint prompter__zone-hint--right" aria-hidden="true">+</div>
+      <div class="prompter__zone-hint prompter__zone-hint--left" aria-hidden="true">‹</div>
+      <div class="prompter__zone-hint prompter__zone-hint--right" aria-hidden="true">›</div>
 
       <div class="prompter__command-toast" data-role="command-toast" role="status" aria-live="polite"></div>
 
