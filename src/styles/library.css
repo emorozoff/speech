@@ -17,19 +17,27 @@
   flex: 1;
 }
 
+.library__quick-row {
+  display: flex;
+  gap: var(--space-2);
+  margin: var(--space-2) var(--space-4) 0;
+}
+
 .library__profile {
+  flex: 1;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: var(--space-2);
-  padding: var(--space-2) var(--space-4);
-  margin: var(--space-2) var(--space-4) 0;
+  padding: var(--space-2) var(--space-3);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   color: var(--color-fg-dim);
   font-size: var(--fs-sm);
-  text-align: left;
+  text-align: center;
   min-height: 36px;
+  min-width: 0;
   transition: background var(--duration-fast) var(--ease);
 }
 

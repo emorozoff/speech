@@ -41,7 +41,6 @@ const CARD_MENU_ITEMS = [
 
 function topbarMenuItems(theme) {
   return [
-    { action: 'help', label: 'Памятка' },
     { action: 'export', label: 'Экспорт' },
     { action: 'import', label: 'Импорт' },
     {
@@ -80,6 +79,9 @@ export async function renderLibrary(root) {
     if (action === 'calibrate') {
       e.preventDefault();
       navigate('/calibrate');
+    } else if (action === 'help') {
+      e.preventDefault();
+      showHelp();
     } else if (action === 'new') {
       e.preventDefault();
       const created = await createScript();
@@ -103,9 +105,7 @@ export async function renderLibrary(root) {
       e.stopPropagation();
       const currentTheme = await getTheme();
       toggleMenu(target, 'topbar', topbarMenuItems(currentTheme), async (chosen) => {
-        if (chosen === 'help') {
-          showHelp();
-        } else if (chosen === 'export') {
+        if (chosen === 'export') {
           try {
             await downloadBackup();
           } catch (err) {
@@ -176,14 +176,20 @@ function renderList(scripts, profile, wpm) {
 }
 
 function renderProfileBanner(profile) {
-  const text = profile
-    ? `Ваш темп: <strong>${profile.wpm} wpm</strong> · перекалибровать`
-    : `Темп не замерен — берём 160 wpm · откалибровать`;
+  const tempText = profile
+    ? `<strong>${profile.wpm} wpm</strong>`
+    : `Замерить темп`;
   return `
-    <button class="library__profile" data-action="calibrate" type="button">
-      <span class="library__profile-icon" aria-hidden="true">${ICON_BOLT}</span>
-      <span class="library__profile-text">${text}</span>
-    </button>
+    <div class="library__quick-row">
+      <button class="library__profile" data-action="calibrate" type="button">
+        <span class="library__profile-icon" aria-hidden="true">${ICON_BOLT}</span>
+        <span class="library__profile-text">${tempText}</span>
+      </button>
+      <button class="library__profile" data-action="help" type="button">
+        <span class="library__profile-icon" aria-hidden="true">${ICON_BOOK}</span>
+        <span class="library__profile-text">Памятка</span>
+      </button>
+    </div>
   `;
 }
 
@@ -450,5 +456,12 @@ const ICON_TRASH = `
 const ICON_BOLT = `
   <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="currentColor">
     <path d="M13 2 3 14h6l-1 8 10-12h-6l1-8Z"/>
+  </svg>
+`;
+
+const ICON_BOOK = `
+  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none">
+    <path d="M4 5a2 2 0 0 1 2-2h12v16H6a2 2 0 0 0-2 2V5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+    <path d="M8 7h7M8 10h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
   </svg>
 `;

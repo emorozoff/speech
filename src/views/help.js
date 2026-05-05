@@ -6,45 +6,38 @@ import { escapeHtml } from '../lib/format.js';
 const VOICE_COMMANDS = [
   {
     phrase: 'стоп стоп',
-    desc: 'Пауза. Самый простой способ — просто скажите слово дважды.',
+    desc: 'Поставить на паузу. Также: «пауза пауза».',
   },
   {
     phrase: 'старт старт',
-    desc: 'Продолжить. Также: «поехали поехали», «пауза пауза» — для разнообразия.',
+    desc: 'Продолжить чтение. Также: «поехали поехали».',
   },
   {
     phrase: 'сначала сначала',
-    desc: 'Перемотать в начало. Также: «заново заново».',
-  },
-  {
-    phrase: 'суфлёр стоп',
-    desc: 'Альтернативный способ — wake-слово плюс команда. Можно «speech стоп».',
-  },
-  {
-    phrase: 'суфлёр больше',
-    desc: 'Крупнее шрифт. Также: «суфлёр крупнее», «суфлёр меньше».',
-  },
-  {
-    phrase: 'суфлёр назад на 10',
-    desc: 'Отмотать на N слов. Число можно сказать словом: «пять», «двадцать».',
+    desc: 'Вернуться к началу. Также: «заново заново».',
   },
 ];
 
 const GESTURES = [
   {
     iconKey: 'tap-left',
-    title: 'Тап у края',
-    desc: 'Сдвинуть текст в сторону края: слева, справа, сверху, снизу. Удобно подогнать его под лицо в кадре, не залезая в настройки.',
+    title: 'Тап слева или справа',
+    desc: 'Сдвигает текст в сторону тапа — удобно подогнать его под лицо в кадре, не залезая в настройки.',
+  },
+  {
+    iconKey: 'pan-y',
+    title: 'Стрелки сверху по центру',
+    desc: 'Двигают текст вверх или вниз мелким шагом — для точной вертикальной подгонки.',
   },
   {
     iconKey: 'tap-center',
     title: 'Тап в центре',
-    desc: 'Показать или скрыть управление.',
+    desc: 'Показать или скрыть управление, если оно скрылось.',
   },
   {
     iconKey: 'gear',
     title: 'Шестерёнка слева сверху',
-    desc: 'Настройки на ходу: шрифт, ширина, линия чтения, зеркало.',
+    desc: 'Настройки на ходу: шрифт, ширина, линия чтения, зеркало, скорость.',
   },
   {
     iconKey: 'mic',
@@ -89,9 +82,7 @@ export function showHelp() {
             Голосовые команды
           </h3>
           <p class="help__section-lead">
-            Самый простой способ — <strong>сказать слово-команду дважды</strong>:
-            «стоп стоп», «старт старт», «сначала сначала». Это работает почти всегда.
-            Альтернативно — wake-слово <strong>«суфлёр»</strong> или <strong>«speech»</strong> плюс команда.
+            Произнесите слово <strong>дважды подряд</strong> — суфлёр услышит и среагирует. В обычной речи удвоения почти не встречается, поэтому случайно сработает редко.
           </p>
           <ul class="help__list help__list--commands">
             ${VOICE_COMMANDS.map(
@@ -216,6 +207,13 @@ const GESTURE_ICONS = {
     <svg viewBox="0 0 32 32" width="28" height="28" aria-hidden="true" fill="none">
       <rect x="3" y="3" width="26" height="26" rx="5" stroke="currentColor" stroke-width="1.6"/>
       <circle cx="16" cy="16" r="3.5" fill="currentColor"/>
+    </svg>
+  `,
+  'pan-y': `
+    <svg viewBox="0 0 32 32" width="28" height="28" aria-hidden="true" fill="none">
+      <rect x="3" y="3" width="26" height="26" rx="5" stroke="currentColor" stroke-width="1.6"/>
+      <path d="M11 12l5-4 5 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M11 20l5 4 5-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
   `,
   gear: `
