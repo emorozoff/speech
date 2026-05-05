@@ -57,3 +57,33 @@ seedDemoScriptIfFirstRun().finally(() => {
     showUpdatePopup({ previousVersion: updateInfo.previousVersion });
   }
 });
+
+// Когда новая Service Worker берёт контроль (это случается, если
+// фоном скачалась обновлённая версия PWA), показываем ненавязчивый
+// баннер с кнопкой «Перезагрузить». Без перезагрузки страница
+// продолжит работать на старом JS до следующего полного открытия.
+if ('serviceWorker' in navigator) {
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloaded) return;
+    reloaded = true;
+    showReloadBanner();
+  });
+}
+
+function showReloadBanner() {
+  if (document.querySelector('.reload-banner')) return;
+  const banner = document.createElement('div');
+  banner.className = 'reload-banner';
+  banner.innerHTML = `
+    <span>Готова свежая версия speech</span>
+    <button type="button" data-action="reload">Обновить</button>
+  `;
+  document.body.appendChild(banner);
+  requestAnimationFrame(() => banner.classList.add('is-visible'));
+  banner.addEventListener('click', (e) => {
+    if (e.target.closest('[data-action="reload"]')) {
+      window.location.reload();
+    }
+  });
+}

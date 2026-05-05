@@ -59,6 +59,11 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,webmanifest}'],
         navigateFallback: '/speech/index.html',
         cleanupOutdatedCaches: true,
+        // Новая SW активируется немедленно вместо ожидания закрытия
+        // всех вкладок. Без этого пользователи могут долго сидеть на
+        // устаревшей версии, потому что PWA редко закрывают полностью.
+        skipWaiting: true,
+        clientsClaim: true,
       },
     }),
   ],
