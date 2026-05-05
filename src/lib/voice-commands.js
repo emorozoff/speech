@@ -1,6 +1,9 @@
-import { wordsMatch } from './voice-matching.js';
+import { wordsMatch, levenshtein } from './voice-matching.js';
 
-const WAKE_WORD = 'суфлер';
+// Wake words: «суфлёр» — историческое; «speech» — короткий и надёжный
+// для русского STT, потому что произносится как «спич» и редко
+// сливается с другими словами.
+const WAKE_WORDS = ['суфлер', 'speech'];
 
 const SINGLE_COMMANDS = {
   стоп: { action: 'pause' },
@@ -10,6 +13,7 @@ const SINGLE_COMMANDS = {
   играть: { action: 'play' },
   плей: { action: 'play' },
   слушай: { action: 'play' },
+  поехали: { action: 'play' },
   сначала: { action: 'reset' },
   заново: { action: 'reset' },
   больше: { action: 'fontUp' },
@@ -17,6 +21,52 @@ const SINGLE_COMMANDS = {
   меньше: { action: 'fontDown' },
   мельче: { action: 'fontDown' },
 };
+
+// Удвоенные слова, которые сами по себе считаются командой — без wake.
+// Удвоение почти не встречается в живой речи, поэтому ложные срабатывания
+// маловероятны, а пользователю проще сказать «стоп стоп», чем выдавливать
+// «суфлёр стоп».
+const DOUBLE_COMMANDS = {
+  стоп: { action: 'pause' },
+  пауза: { action: 'pause' },
+  старт: { action: 'play' },
+  поехали: { action: 'play' },
+  сначала: { action: 'reset' },
+  заново: { action: 'reset' },
+};
+
+function isWakeWord(token) {
+  if (!token) return false;
+  for (const wake of WAKE_WORDS) {
+    if (token === wake) return true;
+    const minLen = Math.min(token.length, wake.length);
+    if (minLen < 4) continue;
+    // Более щадящий tolerance именно для wake — чтобы «сюрфлер»,
+    // «суфлеро», «спич» (вместо «speech») засчитывались.
+    const tolerance = Math.max(2, Math.floor(minLen / 3));
+    if (levenshtein(token, wake) <= tolerance) return true;
+  }
+  return false;
+}
+
+function findDoubleCommand(tokens) {
+  for (let i = 0; i < tokens.length - 1; i++) {
+    const a = tokens[i];
+    const b = tokens[i + 1];
+    if (!wordsMatch(a, b)) continue;
+    for (const [canonical, cmd] of Object.entries(DOUBLE_COMMANDS)) {
+      if (wordsMatch(a, canonical) || wordsMatch(b, canonical)) {
+        return {
+          action: cmd.action,
+          consumedFrom: i,
+          consumedTo: i + 2,
+          label: `${canonical} ${canonical}`,
+        };
+      }
+    }
+  }
+  return null;
+}
 
 const RU_NUMBERS = {
   ноль: 0,
@@ -82,9 +132,15 @@ export function parseNumberPhrase(tokens) {
 export function detectCommand(tokens) {
   if (!tokens || tokens.length === 0) return null;
 
+  // 1. Удвоенные команды («стоп стоп», «старт старт») — приоритет,
+  // потому что их проще произнести и они не требуют wake word.
+  const doubleCmd = findDoubleCommand(tokens);
+  if (doubleCmd) return doubleCmd;
+
+  // 2. Wake word + команда («суфлёр стоп», «speech стоп»)
   let wakeIdx = -1;
   for (let i = tokens.length - 1; i >= 0; i--) {
-    if (wordsMatch(tokens[i], WAKE_WORD)) {
+    if (isWakeWord(tokens[i])) {
       wakeIdx = i;
       break;
     }

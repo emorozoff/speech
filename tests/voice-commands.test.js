@@ -135,3 +135,45 @@ test('detectCommand: команды требуют точного совпаде
 test('detectCommand: только wake-слово без команды → null', () => {
   assert.equal(detectCommand(tokenize('суфлёр')), null);
 });
+
+test('detectCommand: удвоение «стоп стоп» → pause без wake', () => {
+  assert.equal(detectCommand(tokenize('стоп стоп')).action, 'pause');
+  assert.equal(detectCommand(tokenize('пауза пауза')).action, 'pause');
+});
+
+test('detectCommand: удвоение «старт старт» / «поехали поехали» → play', () => {
+  assert.equal(detectCommand(tokenize('старт старт')).action, 'play');
+  assert.equal(detectCommand(tokenize('поехали поехали')).action, 'play');
+});
+
+test('detectCommand: удвоение «сначала сначала» → reset', () => {
+  assert.equal(detectCommand(tokenize('сначала сначала')).action, 'reset');
+  assert.equal(detectCommand(tokenize('заново заново')).action, 'reset');
+});
+
+test('detectCommand: удвоение находится в середине фразы', () => {
+  // Пользователь читает текст и вставляет команду между словами.
+  const cmd = detectCommand(tokenize('читаем дальше стоп стоп остальное'));
+  assert.equal(cmd.action, 'pause');
+});
+
+test('detectCommand: одиночное «стоп» без удвоения и без wake → null', () => {
+  // Защита от ложных срабатываний на «стоп» в скрипте.
+  assert.equal(detectCommand(tokenize('и тогда я сказал стоп')), null);
+});
+
+test('detectCommand: разные слова рядом — не команда', () => {
+  // «стоп старт» — это не удвоение, ничего не делает.
+  assert.equal(detectCommand(tokenize('стоп старт')), null);
+});
+
+test('detectCommand: speech как альтернативный wake', () => {
+  assert.equal(detectCommand(tokenize('speech стоп')).action, 'pause');
+  assert.equal(detectCommand(tokenize('speech старт')).action, 'play');
+});
+
+test('detectCommand: толерантность к опечаткам wake-слова', () => {
+  // Реальные мисс-распознавания «суфлёр» от русского STT.
+  assert.equal(detectCommand(tokenize('сюрфлер стоп'))?.action, 'pause');
+  assert.equal(detectCommand(tokenize('суфлеро стоп'))?.action, 'pause');
+});

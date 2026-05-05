@@ -44,8 +44,8 @@ export function showOnboarding() {
         <h2 class="onboarding__title">Текст слушает вас</h2>
         <p class="onboarding__text">
           Разрешите микрофон — и текст поедет за вашим голосом сам.
-          Скажите <strong>«суфлёр стоп»</strong>, чтобы поставить на паузу,
-          и <strong>«суфлёр старт»</strong>, чтобы продолжить.
+          Скажите <strong>«стоп стоп»</strong>, чтобы поставить на паузу,
+          и <strong>«старт старт»</strong>, чтобы продолжить.
         </p>
       </section>
       <section class="onboarding__page">

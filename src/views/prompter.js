@@ -820,7 +820,7 @@ function renderTemplate(script, settings, resume) {
         }
         <p class="prompter__intro-hint">
           Разрешите микрофон при первом запуске.<br/>
-          Голосом: <strong>«суфлёр стоп»</strong> и <strong>«суфлёр старт»</strong>
+          Голосом: <strong>«стоп стоп»</strong> и <strong>«старт старт»</strong>
         </p>
       </div>
 
