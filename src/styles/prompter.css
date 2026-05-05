@@ -592,18 +592,47 @@
   transform: translateY(-50%);
 }
 
-.prompter__zone-hint--top {
-  top: calc(var(--safe-top) + var(--space-8));
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-.prompter__zone-hint--bottom {
-  bottom: calc(var(--safe-bottom) + var(--space-10));
-  left: 50%;
-  transform: translateX(-50%);
-}
-
 .prompter--idle .prompter__zone-hint {
   opacity: 0;
+}
+
+.prompter__pan-y-group {
+  position: absolute;
+  top: calc(var(--safe-top) + var(--space-2));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  /* Большой gap между кнопками — целиться в зеркале сложно, две тач-зоны
+     не должны прижиматься друг к другу. */
+  gap: var(--space-5);
+  z-index: 5;
+  transition: opacity var(--duration-base) var(--ease);
+}
+
+.prompter__pan-y {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 56×56 — крупная тач-зона, легко попасть пальцем по отражению. */
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--color-fg-dim);
+  transition: background var(--duration-fast) var(--ease),
+    color var(--duration-fast) var(--ease),
+    transform var(--duration-fast) var(--ease);
+}
+
+.prompter__pan-y:active {
+  background: rgba(0, 0, 0, 0.78);
+  color: var(--color-fg);
+  transform: scale(0.94);
+}
+
+.prompter--idle .prompter__pan-y-group {
+  opacity: 0.45;
 }

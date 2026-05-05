@@ -28,6 +28,7 @@ const SPEED_STEP = 1;
 const SPEED_MIN = 1;
 const SPEED_MAX = 20;
 const TEXT_OFFSET_STEP = 30;
+const TEXT_OFFSET_Y_STEP = 10;
 const TEXT_OFFSET_MAX = 200;
 const CONTROLS_HIDE_AFTER_MS = 2500;
 
@@ -726,31 +727,31 @@ export async function renderPrompter(root, { id }) {
     } else if (action === 'voice-error-dismiss') {
       e.stopPropagation();
       hideVoiceErrorOverlay();
+    } else if (action === 'pan-up') {
+      e.stopPropagation();
+      adjustTextOffsetY(-TEXT_OFFSET_Y_STEP);
+      showControls();
+    } else if (action === 'pan-down') {
+      e.stopPropagation();
+      adjustTextOffsetY(TEXT_OFFSET_Y_STEP);
+      showControls();
     } else if (e.target.closest('[data-role="controls"]')) {
       showControls();
     } else {
-      // Краевые зоны двигают текст — удобно подогнать его под лицо в
-      // кадре, не залезая в настройки. Какой край ближе к тапу, в ту
-      // сторону текст и едет. При зеркале ratio инвертируется, чтобы
-      // пользователь, смотрящий через стекло, тапал «по тому что видит».
+      // Боковые зоны двигают текст по горизонтали — удобно подогнать
+      // его под лицо в кадре, не залезая в настройки. Вертикаль —
+      // через явные кнопки сверху, потому что нижняя четверть была бы
+      // под controls bar и недоступна.
       const rect = section.getBoundingClientRect();
       const fromLeft = e.clientX - rect.left;
       const fromRight = rect.width - fromLeft;
-      const fromTop = e.clientY - rect.top;
-      const fromBottom = rect.height - fromTop;
-      const minH = Math.min(fromLeft, fromRight);
-      const minV = Math.min(fromTop, fromBottom);
       const HORIZ_EDGE = rect.width * 0.25;
-      const VERT_EDGE = rect.height * 0.20;
+      const minH = Math.min(fromLeft, fromRight);
 
-      if (minH <= minV && minH < HORIZ_EDGE) {
+      if (minH < HORIZ_EDGE) {
         let goRight = fromLeft > fromRight;
         if (settings.mirrorH) goRight = !goRight;
         adjustTextOffsetX(goRight ? TEXT_OFFSET_STEP : -TEXT_OFFSET_STEP);
-      } else if (minV < VERT_EDGE) {
-        let goDown = fromTop > fromBottom;
-        if (settings.mirrorV) goDown = !goDown;
-        adjustTextOffsetY(goDown ? TEXT_OFFSET_STEP : -TEXT_OFFSET_STEP);
       }
       showControls();
     }
@@ -863,10 +864,21 @@ function renderTemplate(script, settings, resume) {
         aria-label="настройки"
       >${ICON_GEAR}</button>
 
+      <div class="prompter__pan-y-group">
+        <button
+          class="prompter__pan-y"
+          data-action="pan-up"
+          aria-label="сдвинуть текст вверх"
+        >${ICON_CHEVRON_UP}</button>
+        <button
+          class="prompter__pan-y"
+          data-action="pan-down"
+          aria-label="сдвинуть текст вниз"
+        >${ICON_CHEVRON_DOWN}</button>
+      </div>
+
       <div class="prompter__zone-hint prompter__zone-hint--left" aria-hidden="true">‹</div>
       <div class="prompter__zone-hint prompter__zone-hint--right" aria-hidden="true">›</div>
-      <div class="prompter__zone-hint prompter__zone-hint--top" aria-hidden="true">⌃</div>
-      <div class="prompter__zone-hint prompter__zone-hint--bottom" aria-hidden="true">⌄</div>
 
       <div class="prompter__command-toast" data-role="command-toast" role="status" aria-live="polite"></div>
 
@@ -1019,6 +1031,18 @@ const ICON_MIC_OFF = `
     <path d="M5 11a7 7 0 0 0 14 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
     <path d="M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
     <path d="M3 3l18 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+  </svg>
+`;
+
+const ICON_CHEVRON_UP = `
+  <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none">
+    <path d="m6 15 6-6 6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+`;
+
+const ICON_CHEVRON_DOWN = `
+  <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none">
+    <path d="m6 9 6 6 6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
   </svg>
 `;
 
