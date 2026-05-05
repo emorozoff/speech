@@ -101,17 +101,18 @@ export async function renderPrompter(root, { id }) {
   };
 
   // Совмещаем sub-pixel сдвиг от движка (накопленный остаток за кадр)
-  // и горизонтальный offset, который пользователь крутит зон-тапами.
-  // Сдвиг применяется напрямую — пользователь смотрит на физический
-  // экран и ожидает «тап справа → текст вправо», независимо от того,
-  // включено ли зеркало.
+  // и offset, который пользователь крутит зон-тапами.
+  // Сдвиг применяется в координатах wrap'а — это даёт «правильное»
+  // визуальное поведение в зеркальном режиме: click handler инвертирует
+  // ratio, а здесь просто прибавляем offset как есть.
   let currentSubPixel = 0;
   function applyShiftTransform() {
-    const offset = settings.textOffset ?? 0;
-    if (offset === 0 && currentSubPixel === 0) {
+    const offsetX = settings.textOffset ?? 0;
+    const offsetY = (settings.textOffsetY ?? 0) - currentSubPixel;
+    if (offsetX === 0 && offsetY === 0) {
       shiftEl.style.transform = '';
     } else {
-      shiftEl.style.transform = `translate3d(${offset}px, ${-currentSubPixel}px, 0)`;
+      shiftEl.style.transform = `translate3d(${offsetX}px, ${offsetY}px, 0)`;
     }
   }
 
@@ -306,7 +307,7 @@ export async function renderPrompter(root, { id }) {
     persistSettings();
   };
 
-  const adjustTextOffset = (delta) => {
+  const adjustTextOffsetX = (delta) => {
     const next = clamp(
       (settings.textOffset ?? 0) + delta,
       -TEXT_OFFSET_MAX,
@@ -314,6 +315,18 @@ export async function renderPrompter(root, { id }) {
     );
     if (next === settings.textOffset) return;
     settings.textOffset = next;
+    applyShiftTransform();
+    persistSettings();
+  };
+
+  const adjustTextOffsetY = (delta) => {
+    const next = clamp(
+      (settings.textOffsetY ?? 0) + delta,
+      -TEXT_OFFSET_MAX,
+      TEXT_OFFSET_MAX,
+    );
+    if (next === settings.textOffsetY) return;
+    settings.textOffsetY = next;
     applyShiftTransform();
     persistSettings();
   };
@@ -716,15 +729,28 @@ export async function renderPrompter(root, { id }) {
     } else if (e.target.closest('[data-role="controls"]')) {
       showControls();
     } else {
-      // Боковые зоны двигают текст по горизонтали — удобно сдвинуть его
-      // под лицо в кадре, не залезая в настройки. Скорость регулируется
-      // только через controls bar или голос (в voice-режиме — автоматически).
+      // Краевые зоны двигают текст — удобно подогнать его под лицо в
+      // кадре, не залезая в настройки. Какой край ближе к тапу, в ту
+      // сторону текст и едет. При зеркале ratio инвертируется, чтобы
+      // пользователь, смотрящий через стекло, тапал «по тому что видит».
       const rect = section.getBoundingClientRect();
-      const ratio = (e.clientX - rect.left) / rect.width;
-      if (ratio < 0.25) {
-        adjustTextOffset(-TEXT_OFFSET_STEP);
-      } else if (ratio > 0.75) {
-        adjustTextOffset(TEXT_OFFSET_STEP);
+      const fromLeft = e.clientX - rect.left;
+      const fromRight = rect.width - fromLeft;
+      const fromTop = e.clientY - rect.top;
+      const fromBottom = rect.height - fromTop;
+      const minH = Math.min(fromLeft, fromRight);
+      const minV = Math.min(fromTop, fromBottom);
+      const HORIZ_EDGE = rect.width * 0.25;
+      const VERT_EDGE = rect.height * 0.20;
+
+      if (minH <= minV && minH < HORIZ_EDGE) {
+        let goRight = fromLeft > fromRight;
+        if (settings.mirrorH) goRight = !goRight;
+        adjustTextOffsetX(goRight ? TEXT_OFFSET_STEP : -TEXT_OFFSET_STEP);
+      } else if (minV < VERT_EDGE) {
+        let goDown = fromTop > fromBottom;
+        if (settings.mirrorV) goDown = !goDown;
+        adjustTextOffsetY(goDown ? TEXT_OFFSET_STEP : -TEXT_OFFSET_STEP);
       }
       showControls();
     }
@@ -740,8 +766,11 @@ function applyTextSettings(textEl, settings) {
 }
 
 function applyVisualSettings(section, viewport, settings) {
-  viewport.classList.toggle('prompter__viewport--mirror-h', !!settings.mirrorH);
-  viewport.classList.toggle('prompter__viewport--mirror-v', !!settings.mirrorV);
+  // Зеркалим весь UI через wrap, а не только текст — иконки, контролы,
+  // прогресс. Settings-sheet и voice-error overlay создаются динамически
+  // как siblings wrap'а, поэтому остаются читаемыми.
+  section.classList.toggle('prompter--mirror-h', !!settings.mirrorH);
+  section.classList.toggle('prompter--mirror-v', !!settings.mirrorV);
   section.classList.toggle('prompter--with-line', !!settings.readingLine);
 }
 
@@ -807,6 +836,7 @@ function renderTemplate(script, settings, resume) {
   const body = script.body || '';
   return `
     <section class="prompter">
+      <div class="prompter__mirror-wrap" data-role="mirror-wrap">
       <div class="prompter__progress prompter__progress--top" aria-hidden="true">
         <div class="prompter__progress-bar" data-role="progress-top"></div>
       </div>
@@ -835,6 +865,8 @@ function renderTemplate(script, settings, resume) {
 
       <div class="prompter__zone-hint prompter__zone-hint--left" aria-hidden="true">‹</div>
       <div class="prompter__zone-hint prompter__zone-hint--right" aria-hidden="true">›</div>
+      <div class="prompter__zone-hint prompter__zone-hint--top" aria-hidden="true">⌃</div>
+      <div class="prompter__zone-hint prompter__zone-hint--bottom" aria-hidden="true">⌄</div>
 
       <div class="prompter__command-toast" data-role="command-toast" role="status" aria-live="polite"></div>
 
@@ -914,6 +946,7 @@ function renderTemplate(script, settings, resume) {
             ${ICON_PLUS}
           </button>
         </div>
+      </div>
       </div>
     </section>
   `;

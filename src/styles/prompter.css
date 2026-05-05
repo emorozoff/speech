@@ -96,15 +96,24 @@
   opacity: 0.45;
 }
 
-.prompter__viewport--mirror-h .prompter__text {
+.prompter__mirror-wrap {
+  position: absolute;
+  inset: 0;
+  /* Зеркало применяется к этому wrap'у — flip'ит весь UI суфлёра, чтобы
+     при работе через стекло-зеркало в кадре всё смотрелось нормально.
+     transform-origin центральный, чтобы flip не сдвигал layout. */
+  transform-origin: 50% 50%;
+}
+
+.prompter--mirror-h .prompter__mirror-wrap {
   transform: scaleX(-1);
 }
 
-.prompter__viewport--mirror-v .prompter__text {
+.prompter--mirror-v .prompter__mirror-wrap {
   transform: scaleY(-1);
 }
 
-.prompter__viewport--mirror-h.prompter__viewport--mirror-v .prompter__text {
+.prompter--mirror-h.prompter--mirror-v .prompter__mirror-wrap {
   transform: scale(-1, -1);
 }
 
@@ -552,8 +561,6 @@
 
 .prompter__zone-hint {
   position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -575,10 +582,26 @@
 
 .prompter__zone-hint--left {
   left: var(--space-3);
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .prompter__zone-hint--right {
   right: var(--space-3);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.prompter__zone-hint--top {
+  top: calc(var(--safe-top) + var(--space-8));
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.prompter__zone-hint--bottom {
+  bottom: calc(var(--safe-bottom) + var(--space-10));
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 .prompter--idle .prompter__zone-hint {
