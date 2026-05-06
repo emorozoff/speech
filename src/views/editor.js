@@ -7,6 +7,9 @@ import { navigate } from '../lib/router.js';
 import { escapeHtml } from '../lib/format.js';
 import { debounce } from '../lib/debounce.js';
 import { openSettings } from '../lib/settings-sheet.js';
+import { showConfirmModal } from '../lib/confirm-modal.js';
+
+const FAST_PASTE_WARNING_KEY = 'speech.fastPasteWarningShown';
 
 export async function renderEditor(root, { id }) {
   const script = await getScript(id);
@@ -92,38 +95,68 @@ export async function renderEditor(root, { id }) {
         },
       });
     } else if (action === 'paste') {
-      await pasteFromClipboard(bodyInput, () => {
-        state.body = bodyInput.value;
+      await fastPasteAndReplace(bodyInput, state, () => {
         setIndicator('saving');
         save();
-      }, setIndicator);
+      });
     }
   });
 }
 
-async function pasteFromClipboard(textarea, onChange, setIndicator) {
+// «+ Из буфера» — быстрая замена всего содержимого скрипта на то,
+// что лежит в буфере (Universal Clipboard). Сценарий: текст
+// в Notion на маке → Cmd+C → телефон стоит в стекле суфлёра →
+// одна кнопка (или Voice Control «Tap из буфера»), и текст заменён.
+//
+// Чтобы случайно не уничтожить редакцию — при первом использовании
+// показываем confirm-popup. Дальше молча.
+async function fastPasteAndReplace(textarea, state, onChange) {
   if (!navigator.clipboard || !navigator.clipboard.readText) {
-    setIndicator?.('saving');
     flashMessage(textarea, 'Буфер обмена недоступен');
     return;
   }
+  let text;
   try {
-    const text = await navigator.clipboard.readText();
-    if (!text) {
-      flashMessage(textarea, 'В буфере ничего нет');
-      return;
-    }
-    const start = textarea.selectionStart ?? textarea.value.length;
-    const end = textarea.selectionEnd ?? textarea.value.length;
-    const value = textarea.value;
-    textarea.value = value.slice(0, start) + text + value.slice(end);
-    const caret = start + text.length;
-    textarea.selectionStart = textarea.selectionEnd = caret;
-    textarea.focus();
-    onChange();
+    text = await navigator.clipboard.readText();
   } catch {
     flashMessage(textarea, 'Зажмите палец в поле и выберите «Вставить»');
+    return;
   }
+  if (!text) {
+    flashMessage(textarea, 'В буфере ничего нет');
+    return;
+  }
+
+  const hasExistingText = (state.body ?? '').trim().length > 0;
+  let alreadyWarned = false;
+  try {
+    alreadyWarned = localStorage.getItem(FAST_PASTE_WARNING_KEY) !== null;
+  } catch {
+    /* private mode — считаем что не предупреждали */
+  }
+
+  if (hasExistingText && !alreadyWarned) {
+    const ok = await showConfirmModal({
+      title: 'Заменить весь текст?',
+      body:
+        'Эта кнопка вставит содержимое буфера вместо текущего сценария. ' +
+        'Старый текст исчезнет. Это сообщение появится только один раз — ' +
+        'дальше будет молча.',
+      confirmLabel: 'Заменить',
+      cancelLabel: 'Отмена',
+    });
+    if (!ok) return;
+    try {
+      localStorage.setItem(FAST_PASTE_WARNING_KEY, '1');
+    } catch {
+      /* private mode — ну и ладно, в следующий раз спросим ещё раз */
+    }
+  }
+
+  textarea.value = text;
+  state.body = text;
+  textarea.selectionStart = textarea.selectionEnd = text.length;
+  onChange();
 }
 
 function flashMessage(textarea, text) {
@@ -158,9 +191,12 @@ function renderTemplate(state) {
           autocomplete="off"
           spellcheck="false"
         />
-        <button class="editor__icon-button" data-action="paste" aria-label="вставить из буфера">
-          ${ICON_PASTE}
-        </button>
+        <button
+          class="editor__icon-button"
+          data-action="paste"
+          aria-label="из буфера"
+          title="Вставить из буфера и заменить текст"
+        >${ICON_PASTE}</button>
         <button class="editor__icon-button" data-action="settings-open" aria-label="настройки">
           ${ICON_GEAR}
         </button>
