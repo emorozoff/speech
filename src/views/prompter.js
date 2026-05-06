@@ -97,24 +97,34 @@ export async function renderPrompter(root, { id }) {
     await setLastPosition(id, 0, currentLen);
   };
 
-  // Совмещаем sub-pixel сдвиг от движка (накопленный остаток за кадр)
-  // и offset, который пользователь крутит зон-тапами.
-  // Сдвиг применяется в координатах wrap'а — это даёт «правильное»
-  // визуальное поведение в зеркальном режиме: click handler инвертирует
-  // ratio, а здесь просто прибавляем offset как есть.
+  // Горизонтальный pan через transform на тексте. Sub-pixel offset от
+  // движка совмещаем тут же, чтобы было одно место с применением
+  // transform.
+  // Вертикальный pan (textOffsetY) НЕ применяется через transform —
+  // он смещает reading line, а scroll engine сам кладёт слово на новую
+  // линию. Иначе визуально слово оказывалось не там, где пользователь
+  // ожидает его видеть после сдвига.
   let currentSubPixel = 0;
   function applyShiftTransform() {
     const offsetX = settings.textOffset ?? 0;
-    const offsetY = (settings.textOffsetY ?? 0) - currentSubPixel;
-    if (offsetX === 0 && offsetY === 0) {
+    if (offsetX === 0 && currentSubPixel === 0) {
       shiftEl.style.transform = '';
     } else {
-      shiftEl.style.transform = `translate3d(${offsetX}px, ${offsetY}px, 0)`;
+      shiftEl.style.transform = `translate3d(${offsetX}px, ${-currentSubPixel}px, 0)`;
     }
   }
 
+  // «Линия чтения» в пикселях от верха viewport — учитывает и базовый
+  // ratio из настроек (top/center/bottom), и пользовательский Y-сдвиг.
+  function readingLineY() {
+    return (
+      viewport.clientHeight * readingLineRatio() +
+      (settings.textOffsetY ?? 0)
+    );
+  }
+
   function findWordIndexAtScroll(scrollTop) {
-    const target = scrollTop + viewport.clientHeight * readingLineRatio();
+    const target = scrollTop + readingLineY();
     for (let i = 0; i < wordElements.length; i++) {
       const w = wordElements[i];
       if (w.offsetTop + w.offsetHeight >= target) return i;
@@ -142,6 +152,10 @@ export async function renderPrompter(root, { id }) {
     section.style.setProperty(
       '--reading-line-top',
       `${readingLineRatio() * 100}%`,
+    );
+    section.style.setProperty(
+      '--reading-line-y-offset',
+      `${settings.textOffsetY ?? 0}px`,
     );
   }
 
@@ -318,7 +332,13 @@ export async function renderPrompter(root, { id }) {
     );
     if (next === settings.textOffsetY) return;
     settings.textOffsetY = next;
-    applyShiftTransform();
+    applyReadingLinePosition();
+    // Подкручиваем scroll, чтобы текущее слово сразу оказалось на новой
+    // позиции линии чтения — иначе после сдвига оно осталось бы там, где
+    // было до сдвига, и ждать пришлось бы пока voice его «догонит».
+    if (currentWordEl) {
+      requestAnimationFrame(() => scrollToWord(currentWordIdx, 0));
+    }
     persistSettings();
   };
 
@@ -593,7 +613,7 @@ export async function renderPrompter(root, { id }) {
       viewport.scrollTop +
       (wordRect.top - viewportRect.top) +
       wordRect.height / 2;
-    const target = wordCenter - viewport.clientHeight * readingLineRatio();
+    const target = wordCenter - readingLineY();
     scroller.scrollTo(target, durationMs);
   }
 
