@@ -26,11 +26,6 @@ export class ScrollEngine {
     // sub-pixel смещения через CSS-transform — иначе на скорости 1
     // целочисленный scrollTop виден как редкие рывки по 1px.
     this.onFrame = options.onFrame ?? null;
-    // getVelocity() — внешний источник скорости в px/sec. Используется
-    // в voice-режиме: speed подкручивается через обратную связь
-    // (где voice-курсор vs где reading line). Если возвращает null,
-    // engine падает обратно на статичное значение из speedSetting.
-    this.getVelocity = options.getVelocity ?? null;
     this._step = this._step.bind(this);
   }
 
@@ -71,24 +66,16 @@ export class ScrollEngine {
     const dt = Math.min((now - this.lastTime) / 1000, 0.1);
     this.lastTime = now;
 
-    let pxPerSec;
-    if (this.getVelocity) {
-      const v = this.getVelocity();
-      pxPerSec =
-        v !== null && v !== undefined ? v : speedToPxPerSec(this.speedSetting);
-    } else {
-      pxPerSec = speedToPxPerSec(this.speedSetting);
-    }
-    // Накапливаем дробную часть в this.accumulator и шагаем целыми
-    // пикселями — sub-pixel остаток отдаём в onFrame для применения
-    // через CSS-transform.
-    const next = this.accumulator + Math.max(0, pxPerSec) * dt;
-    const delta = Math.floor(next);
-    this.accumulator = next - delta;
+    const { delta, accumulator } = computeScrollStep(
+      dt,
+      this.speedSetting,
+      this.accumulator,
+    );
+    this.accumulator = accumulator;
     if (delta > 0) {
       this.viewport.scrollTop += delta;
     }
-    if (this.onFrame) this.onFrame(this.accumulator);
+    if (this.onFrame) this.onFrame(accumulator);
 
     if (this.isAtEnd()) {
       this.stop();

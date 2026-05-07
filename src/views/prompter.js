@@ -48,10 +48,6 @@ export async function renderPrompter(root, { id }) {
   let cleaned = false;
   let voice = null;
   let currentWordIdx = 0;
-  // Куда voice-follower последний раз заматчил курсор. Это «цель»,
-  // которую engine плавно догоняет в voice-режиме через
-  // proportional speed control. null = ещё не заматчили ничего.
-  let voiceTargetIdx = null;
   let currentWordEl = null;
   let totalWords = 0;
   let totalSeconds = 0;
@@ -203,45 +199,11 @@ export async function renderPrompter(root, { id }) {
     voiceButton.title = 'распознавание речи не поддерживается';
   }
 
-  // В voice-режиме скорость не статичная (как при ручном auto-scroll),
-  // а вычисляется каждый кадр по принципу: где сейчас слово, на котором
-  // voice — относительно reading line. Если ниже линии (пользователь
-  // читает быстрее) — ускоряемся. Выше (отстаём) — замедляемся вплоть
-  // до полной остановки.
-  function computeVoiceVelocity() {
-    // null означает «использовать статичный speedSetting» — то есть
-    // обычный auto-scroll, не voice-mode.
-    if (!voice || !settings.voiceFollow) return null;
-    if (voiceTargetIdx === null) return null;
-    const word = wordElements[voiceTargetIdx];
-    if (!word) return null;
-
-    const wordRect = word.getBoundingClientRect();
-    const viewportRect = viewport.getBoundingClientRect();
-    const wordY = wordRect.top + wordRect.height / 2 - viewportRect.top;
-    const targetY = readingLineY();
-    const error = wordY - targetY;
-
-    // Базовая скорость: лёгкий «дрейф» вперёд, чтобы текст медленно
-    // полз даже когда voice молчит — иначе картинка кажется зависшей.
-    // Пропорциональный коэф. на error двигает скорость к компенсации
-    // рассогласования. Clamp в 0 — назад текст не идёт (для backward
-    // jumps есть отдельный snap в onPosition).
-    const BASELINE = 14;
-    const ERROR_GAIN = 0.35;
-    const MAX = 220;
-    let velocity = BASELINE + error * ERROR_GAIN;
-    if (velocity < 0) velocity = 0;
-    if (velocity > MAX) velocity = MAX;
-    return velocity;
-  }
-
   const engine = new ScrollEngine(viewport, settings.speed, {
     onFrame: (subPixel) => {
       currentSubPixel = subPixel;
       applyShiftTransform();
     },
-    getVelocity: computeVoiceVelocity,
   });
   engine.onEnd = async () => {
     pause();
@@ -293,12 +255,9 @@ export async function renderPrompter(root, { id }) {
     if (settings.voiceFollow) {
       if (!voice) await enableVoice();
       else voice.resume();
-      // В voice-режиме engine тоже работает: его скорость диктует
-      // computeVoiceVelocity. До первого voice-match velocity=null →
-      // engine использует статичный setting (медленный crawl).
-      voiceTargetIdx = currentWordIdx;
+    } else {
+      engine.start();
     }
-    engine.start();
     syncVoiceListening();
     showControls();
   };
@@ -309,8 +268,9 @@ export async function renderPrompter(root, { id }) {
     section.classList.remove('prompter--playing');
     if (settings.voiceFollow && voice) {
       voice.pause();
+    } else {
+      engine.stop();
     }
-    engine.stop();
     persistPosition.flush();
     syncVoiceListening();
     showControls();
@@ -328,7 +288,6 @@ export async function renderPrompter(root, { id }) {
     section.classList.remove('prompter--playing');
     viewport.scrollTop = 0;
     currentWordIdx = 0;
-    voiceTargetIdx = null;
     setCurrentWord(0);
     if (voice) {
       voice.setCursor(0);
@@ -424,24 +383,15 @@ export async function renderPrompter(root, { id }) {
       return;
     }
 
-    // НЕ останавливаем engine — в voice-режиме он крутит scroll
-    // непрерывно с adaptive velocity (см. computeVoiceVelocity).
+    engine.stop();
     await acquireScreenLocks();
 
     voice = new VoiceFollower({
       scriptBody: script.body || '',
       onPosition: (idx) => {
-        // Backward jump (bidirectional matching) — там proportional
-        // control не работает (velocity clamp на 0). Делаем мгновенный
-        // snap к слову, чтобы scroll догнал назад.
-        const isBackwardJump =
-          voiceTargetIdx !== null && idx < voiceTargetIdx - 3;
         currentWordIdx = idx;
-        voiceTargetIdx = idx;
         setCurrentWord(idx);
-        if (isBackwardJump) {
-          scrollToWord(idx);
-        }
+        scrollToWord(idx);
         // Диктовка пошла — UI прячется сразу, чтобы не отвлекать.
         // Контролы вернутся по тапу.
         hideControlsImmediately();
@@ -561,7 +511,6 @@ export async function renderPrompter(root, { id }) {
       voice.stop();
       voice = null;
     }
-    voiceTargetIdx = null;
     isPlaying = false;
     section.classList.remove('prompter--playing');
     syncVoiceListening();
