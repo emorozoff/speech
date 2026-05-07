@@ -6,9 +6,15 @@
 // новое слово прерывало текущее движение и начинало новое.
 //
 // Теперь scrollTo() просто обновляет target. Внутренний анимационный
-// цикл каждый кадр сдвигает scrollTop на (target - current) * factor.
+// цикл каждый кадр сдвигает scrollTop на min(diff * factor, MAX_STEP).
 // Получается плавное «преследование» цели без резких прыжков.
+//
+// Зачем clamp: при большой distance (voice догнал на 5 слов вперёд)
+// чистый lerp на первых кадрах двигал бы текст слишком быстро —
+// глаз не успевает следить, выглядит как «прыжок». Clamp на 14 px/кадр
+// (~840 px/sec) даёт постоянную предсказуемую скорость движения.
 const LERP_FACTOR = 0.14;
+const MAX_STEP_PX = 14;
 
 export class SmoothScroller {
   constructor(viewport) {
@@ -46,7 +52,10 @@ export class SmoothScroller {
       this.frame = 0;
       return;
     }
-    this.viewport.scrollTop = current + diff * LERP_FACTOR;
+    let step = diff * LERP_FACTOR;
+    if (step > MAX_STEP_PX) step = MAX_STEP_PX;
+    else if (step < -MAX_STEP_PX) step = -MAX_STEP_PX;
+    this.viewport.scrollTop = current + step;
     this.frame = requestAnimationFrame(this._step);
   }
 
