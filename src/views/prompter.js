@@ -20,7 +20,6 @@ import {
   releaseWakeLock,
 } from '../lib/screen.js';
 import { openSettings } from '../lib/settings-sheet.js';
-import { isLabOn } from '../lib/lab-mode.js';
 
 const FONT_SIZE_STEP = 2;
 const FONT_SIZE_MIN = 12;
@@ -50,12 +49,6 @@ export async function renderPrompter(root, { id }) {
   let voice = null;
   let currentWordIdx = 0;
   let currentWordEl = null;
-  // Adaptive voice scroll — экспериментальный режим. Включается через
-  // ?lab=adaptive в URL. Вместо прыжков-к-слову engine крутит scroll
-  // непрерывно, скорость регулируется по зоне аудиоанализа: где
-  // voice-курсор находится относительно reading line.
-  const ADAPTIVE_VOICE = isLabOn('adaptive');
-  let voiceTargetIdx = null;
   let totalWords = 0;
   let totalSeconds = 0;
 
@@ -206,49 +199,11 @@ export async function renderPrompter(root, { id }) {
     voiceButton.title = 'распознавание речи не поддерживается';
   }
 
-  // Зона аудиоанализа в строках вокруг reading line.
-  // Если voice-курсор:
-  //   - в верхних строках 1-2 (выше линии) — пользователь отстаёт,
-  //     scroll слишком быстрый → замедляемся вплоть до 0
-  //   - в нижних строках 6-7 (ниже линии) — пользователь обогнал,
-  //     scroll слишком медленный → ускоряемся
-  //   - в центральных строках 3-5 — baseline (прозвонка)
-  function computeAdaptiveVelocity() {
-    if (!ADAPTIVE_VOICE) return null;
-    if (!voice || !settings.voiceFollow) return null;
-    if (voiceTargetIdx === null) return null;
-    const word = wordElements[voiceTargetIdx];
-    if (!word) return null;
-
-    const wordRect = word.getBoundingClientRect();
-    const viewportRect = viewport.getBoundingClientRect();
-    const wordY = wordRect.top + wordRect.height / 2 - viewportRect.top;
-    const targetY = readingLineY();
-    const lineHeight =
-      (settings.fontSize ?? 40) * (settings.lineHeight ?? 1.5);
-    const distanceLines = (wordY - targetY) / lineHeight;
-
-    // Dead zone ±1.5 строки — внутри неё скорость baseline.
-    const DEAD_ZONE = 1.5;
-    const baseline = Math.max(0, (settings.speed ?? 12) * 4);
-
-    if (distanceLines > DEAD_ZONE) {
-      const overshoot = Math.min(distanceLines - DEAD_ZONE, 4);
-      return Math.min(baseline * (1 + overshoot * 0.6), 220);
-    } else if (distanceLines < -DEAD_ZONE) {
-      const overshoot = Math.min(-distanceLines - DEAD_ZONE, 4);
-      const factor = Math.max(0, 1 - overshoot * 0.5);
-      return baseline * factor;
-    }
-    return baseline;
-  }
-
   const engine = new ScrollEngine(viewport, settings.speed, {
     onFrame: (subPixel) => {
       currentSubPixel = subPixel;
       applyShiftTransform();
     },
-    getVelocity: ADAPTIVE_VOICE ? computeAdaptiveVelocity : null,
   });
   engine.onEnd = async () => {
     pause();
@@ -300,13 +255,6 @@ export async function renderPrompter(root, { id }) {
     if (settings.voiceFollow) {
       if (!voice) await enableVoice();
       else voice.resume();
-      if (ADAPTIVE_VOICE) {
-        // В lab-режиме engine продолжает крутить, его скорость диктует
-        // computeAdaptiveVelocity. Стартуем с текущим cursor чтобы при
-        // первом вычислении velocity была разумной (без null skip).
-        voiceTargetIdx = currentWordIdx;
-        engine.start();
-      }
     } else {
       engine.start();
     }
@@ -320,10 +268,7 @@ export async function renderPrompter(root, { id }) {
     section.classList.remove('prompter--playing');
     if (settings.voiceFollow && voice) {
       voice.pause();
-    }
-    // В adaptive-режиме engine работает и при voice — поэтому останавливаем
-    // его всегда. В обычном — только если voice не активен (как раньше).
-    if (ADAPTIVE_VOICE || !settings.voiceFollow || !voice) {
+    } else {
       engine.stop();
     }
     persistPosition.flush();
@@ -343,7 +288,6 @@ export async function renderPrompter(root, { id }) {
     section.classList.remove('prompter--playing');
     viewport.scrollTop = 0;
     currentWordIdx = 0;
-    voiceTargetIdx = null;
     setCurrentWord(0);
     if (voice) {
       voice.setCursor(0);
@@ -439,33 +383,15 @@ export async function renderPrompter(root, { id }) {
       return;
     }
 
-    // В обычном режиме engine отдыхает — scroll ведёт voice через
-    // scrollToWord. В adaptive-режиме engine продолжает крутить scroll
-    // непрерывно, его скорость диктует computeAdaptiveVelocity.
-    if (!ADAPTIVE_VOICE) {
-      engine.stop();
-    }
+    engine.stop();
     await acquireScreenLocks();
 
     voice = new VoiceFollower({
       scriptBody: script.body || '',
       onPosition: (idx) => {
-        const isBackwardJump =
-          ADAPTIVE_VOICE &&
-          voiceTargetIdx !== null &&
-          idx < voiceTargetIdx - 3;
         currentWordIdx = idx;
-        voiceTargetIdx = idx;
         setCurrentWord(idx);
-        if (ADAPTIVE_VOICE) {
-          // Continuous control сам подъедет к слову. Только при большом
-          // прыжке назад делаем мгновенный snap (proportional control
-          // в обратном направлении не работает — clamp velocity ≥ 0).
-          if (isBackwardJump) scrollToWord(idx);
-        } else {
-          // Обычный режим — прыжок к слову как раньше.
-          scrollToWord(idx);
-        }
+        scrollToWord(idx);
         // Диктовка пошла — UI прячется сразу, чтобы не отвлекать.
         // Контролы вернутся по тапу.
         hideControlsImmediately();
@@ -585,8 +511,6 @@ export async function renderPrompter(root, { id }) {
       voice.stop();
       voice = null;
     }
-    voiceTargetIdx = null;
-    if (ADAPTIVE_VOICE) engine.stop();
     isPlaying = false;
     section.classList.remove('prompter--playing');
     syncVoiceListening();
