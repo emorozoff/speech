@@ -13,6 +13,7 @@ import './styles/help.css';
 import * as scriptsApi from './storage/scripts.js';
 import { getTheme } from './storage/profile.js';
 import { seedDemoScriptIfFirstRun } from './storage/seed.js';
+import { applyLabFromUrl } from './lib/lab-mode.js';
 import { route, notFound, navigate, start } from './lib/router.js';
 import { renderLibrary } from './views/library.js';
 import { renderEditor } from './views/editor.js';
@@ -25,6 +26,10 @@ import { shouldShowOnboarding, showOnboarding } from './views/onboarding.js';
 if (import.meta.env.DEV) {
   window.__storage = scriptsApi;
 }
+
+// Lab-флаги (?lab=adaptive / ?lab=off) применяются ДО рендера,
+// чтобы сразу попасть в нужный режим на той же сессии.
+applyLabFromUrl();
 
 // Тема применяется до старта роутера, чтобы избежать «вспышки» исходной
 // тёмной темы у пользователей со светлой настройкой.
