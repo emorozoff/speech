@@ -9,8 +9,6 @@ import {
   getEffectiveWpm,
   estimateReadingSeconds,
   formatReadingTime,
-  getTheme,
-  setTheme,
   DEFAULT_WPM,
 } from '../src/storage/profile.js';
 
@@ -71,29 +69,3 @@ test('formatReadingTime: секунды и минуты', () => {
   assert.equal(formatReadingTime(125), '2 мин 5 сек');
 });
 
-test('getTheme: дефолт = dark', async () => {
-  assert.equal(await getTheme(), 'dark');
-});
-
-test('setTheme: сохраняет и читается', async () => {
-  await setTheme('light');
-  assert.equal(await getTheme(), 'light');
-});
-
-test('setTheme: невалидное значение нормализуется в dark', async () => {
-  await setTheme('weird');
-  assert.equal(await getTheme(), 'dark');
-});
-
-test('saveWpm не затирает theme, и наоборот', async () => {
-  await saveWpm(170);
-  await setTheme('light');
-  const profile = await getProfile();
-  assert.equal(profile.wpm, 170);
-  assert.equal(profile.theme, 'light');
-
-  await saveWpm(180);
-  const profile2 = await getProfile();
-  assert.equal(profile2.wpm, 180);
-  assert.equal(profile2.theme, 'light', 'тема осталась');
-});

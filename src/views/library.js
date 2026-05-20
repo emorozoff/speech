@@ -8,8 +8,6 @@ import {
 } from '../storage/scripts.js';
 import {
   getProfile,
-  getTheme,
-  setTheme,
   estimateReadingSeconds,
   formatReadingTime,
   DEFAULT_WPM,
@@ -28,7 +26,6 @@ import {
   parseBackup,
   importLibrary,
 } from '../lib/backup.js';
-import { showConfirmModal } from '../lib/confirm-modal.js';
 import { showFeedbackModal } from '../lib/feedback-modal.js';
 import { showHelp } from './help.js';
 
@@ -39,17 +36,11 @@ const CARD_MENU_ITEMS = [
   { action: 'delete', label: 'Удалить', danger: true },
 ];
 
-function topbarMenuItems(theme) {
-  return [
-    { action: 'export', label: 'Экспорт' },
-    { action: 'import', label: 'Импорт' },
-    {
-      action: 'theme-toggle',
-      label: theme === 'light' ? 'Тёмная тема' : 'Светлая тема',
-    },
-    { action: 'feedback', label: 'Обратная связь' },
-  ];
-}
+const TOPBAR_MENU_ITEMS = [
+  { action: 'export', label: 'Экспорт' },
+  { action: 'import', label: 'Импорт' },
+  { action: 'feedback', label: 'Обратная связь' },
+];
 
 export async function renderLibrary(root) {
   closeMenu();
@@ -103,8 +94,7 @@ export async function renderLibrary(root) {
     } else if (action === 'more') {
       e.preventDefault();
       e.stopPropagation();
-      const currentTheme = await getTheme();
-      toggleMenu(target, 'topbar', topbarMenuItems(currentTheme), async (chosen) => {
+      toggleMenu(target, 'topbar', TOPBAR_MENU_ITEMS, async (chosen) => {
         if (chosen === 'export') {
           try {
             await downloadBackup();
@@ -113,8 +103,6 @@ export async function renderLibrary(root) {
           }
         } else if (chosen === 'import') {
           triggerImport(root);
-        } else if (chosen === 'theme-toggle') {
-          await handleThemeToggle(currentTheme, root);
         } else if (chosen === 'feedback') {
           showFeedbackModal();
         }
@@ -429,24 +417,6 @@ function errorMessage(err) {
   return typeof err.message === 'string' ? err.message : String(err);
 }
 
-async function handleThemeToggle(currentTheme, root) {
-  if (currentTheme === 'dark') {
-    const ok = await showConfirmModal({
-      title: 'Светлая тема?',
-      body: 'Тёмная тема бережёт глаза — особенно когда читаете с экрана перед камерой. Точно переключаемся?',
-      confirmLabel: 'Включить светлую',
-      cancelLabel: 'Оставить тёмную',
-    });
-    if (!ok) return;
-    await setTheme('light');
-    document.documentElement.dataset.theme = 'light';
-    showInfoToast(root, 'Светлая тема включена');
-  } else {
-    await setTheme('dark');
-    document.documentElement.dataset.theme = 'dark';
-    showInfoToast(root, 'Снова в темноте');
-  }
-}
 
 const ICON_DOTS = `
   <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
