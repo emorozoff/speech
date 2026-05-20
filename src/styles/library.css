@@ -179,6 +179,9 @@
   gap: var(--space-1);
   min-width: 0;
   min-height: var(--tap-target-min);
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .card__title {

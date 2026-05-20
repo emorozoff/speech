@@ -210,11 +210,17 @@ function renderCard(script, wpm) {
 
   return `
     <li class="card">
-      <button class="card__main" data-action="open" data-id="${id}">
+      <div
+        class="card__main"
+        role="button"
+        tabindex="0"
+        data-action="open"
+        data-id="${id}"
+      >
         <h2 class="card__title ${hasTitle ? '' : 'card__title--placeholder'}">${escapeHtml(title)}</h2>
         <p class="card__preview ${hasBody ? '' : 'card__preview--placeholder'}">${escapeHtml(preview)}</p>
         <span class="card__meta">${escapeHtml(date)} · ${escapeHtml(wcLabel)}${escapeHtml(readingLabel)}</span>
-      </button>
+      </div>
       <button
         class="card__menu-button"
         data-action="menu"
