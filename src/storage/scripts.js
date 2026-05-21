@@ -6,7 +6,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   textWidth: 75,
   textOffset: 0,
   textOffsetY: 0,
-  speed: 12,
+  speed: 10,
   lineHeight: 1.5,
   mirrorH: true,
   mirrorV: false,
