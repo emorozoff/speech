@@ -12,6 +12,10 @@ const BACKWARD_THRESHOLD = 0.7;
 const MIN_UNIQUE_FOR_BACKWARD = 3;
 const RESTART_DELAY_MS = 250;
 const COMMAND_COOLDOWN_MS = 2000;
+// start() на iOS бросает InvalidStateError, если прошлый recognition ещё
+// не отпустил движок. Это транзиентно — несколько раз переоткрываем, и
+// только потом считаем отказ фатальным, чтобы не гасить голосовой режим.
+const MAX_OPEN_FAILURES = 5;
 // iOS Safari иногда «тихо» закрывает recognition: onend не приходит,
 // но и результатов больше нет. Если за это время ни одного onresult
 // не пришло — форсируем рестарт.
@@ -28,13 +32,19 @@ export class VoiceFollower {
 
     this.recognition = null;
     this.shouldRun = false;
+    // followPaused — мягкая пауза: курсор не двигаем, но микрофон держим
+    // горячим, чтобы услышать «старт старт» и другие команды.
     this.followPaused = false;
+    // suspended — жёсткая остановка (уход в фон): микрофон отпущен,
+    // авто-рестарт запрещён, пока не вернёмся по жесту пользователя.
+    this._suspended = false;
     this.cursor = 0;
     this.recentWords = [];
     this._lastCommandLabel = '';
     this._lastCommandTime = 0;
     this._lastResultTime = 0;
     this._heartbeatTimer = null;
+    this._openFailures = 0;
 
     this._handleResult = this._handleResult.bind(this);
     this._handleEnd = this._handleEnd.bind(this);
@@ -45,23 +55,52 @@ export class VoiceFollower {
   start() {
     if (this.shouldRun) return;
     this.shouldRun = true;
+    this.followPaused = false;
+    this._suspended = false;
+    this._openFailures = 0;
     this._open();
     this._startHeartbeat();
   }
 
   stop() {
     this.shouldRun = false;
+    this.followPaused = false;
+    this._suspended = false;
     this._stopHeartbeat();
     this._close();
     this.onStateChange('stopped');
   }
 
+  // Мягкая пауза (тап «стоп» или голосовая «стоп стоп»): перестаём двигать
+  // курсор, но микрофон оставляем горячим — чтобы поймать «старт старт».
   pause() {
+    if (this.followPaused) return;
     this.followPaused = true;
+    this.onStateChange('paused');
   }
 
   resume() {
     this.followPaused = false;
+    this._suspended = false;
+    if (!this.shouldRun || this.recognition) return;
+    // Микрофон закрыт (умер во время паузы или был отпущен в фоне) —
+    // поднимаем заново. resume() вызывается из жеста пользователя (тап
+    // Play) или из голосовой команды на горячем микрофоне, поэтому iOS
+    // разрешает старт распознавания.
+    this._openFailures = 0;
+    this._open();
+    this._startHeartbeat();
+  }
+
+  // Жёсткая остановка для ухода в фон: отпускаем микрофон немедленно и
+  // запрещаем авто-рестарт. Иначе на iOS индикатор записи горит ещё долго
+  // после сворачивания, а recognition пытается «воскреснуть» в фоне.
+  suspend() {
+    if (this._suspended) return;
+    this._suspended = true;
+    this._stopHeartbeat();
+    this._close();
+    this.onStateChange('suspended');
   }
 
   setCursor(idx) {
@@ -72,6 +111,7 @@ export class VoiceFollower {
   }
 
   _open() {
+    if (this.recognition) return;
     try {
       const rec = createRecognition({ lang: 'ru-RU' });
       rec.onresult = this._handleResult;
@@ -80,24 +120,41 @@ export class VoiceFollower {
       this.recognition = rec;
       rec.start();
       this._lastResultTime = Date.now();
+      this._openFailures = 0;
       this.onStateChange('listening');
     } catch (err) {
-      this.onError(err.message ?? String(err), 'open-failed');
-      this._scheduleRestart();
+      // start() кинул до того, как recognition «ожил» — снимаем ссылку,
+      // иначе guard в начале _open()/_scheduleRestart заблокирует переоткрытие.
+      this.recognition = null;
+      this._openFailures++;
+      if (this._openFailures >= MAX_OPEN_FAILURES) {
+        this.shouldRun = false;
+        this._stopHeartbeat();
+        this.onError(err.message ?? String(err), 'open-failed');
+      } else {
+        this._scheduleRestart();
+      }
     }
   }
 
   _close() {
     if (!this.recognition) return;
+    const rec = this.recognition;
+    // Снимаем ссылку сразу, чтобы повторный _close()/onend не дёргали
+    // уже закрываемый объект.
+    this.recognition = null;
+    rec.onresult = null;
+    rec.onend = null;
+    rec.onerror = null;
     try {
-      this.recognition.onresult = null;
-      this.recognition.onend = null;
-      this.recognition.onerror = null;
-      this.recognition.stop();
+      // abort() отпускает микрофон немедленно; stop() может ещё подержать
+      // его, «дослушивая» хвост, — на iOS из-за этого индикатор записи
+      // горит долго после паузы/сворачивания.
+      if (typeof rec.abort === 'function') rec.abort();
+      else rec.stop();
     } catch {
       /* ignore */
     }
-    this.recognition = null;
   }
 
   _handleResult(event) {
@@ -163,7 +220,10 @@ export class VoiceFollower {
 
   _handleEnd() {
     this.recognition = null;
-    if (this.shouldRun) {
+    // В фоне (suspended) и после stop() не воскрешаем микрофон — иначе он
+    // будет оживать в свёрнутом приложении и держать индикатор записи.
+    // На мягкой паузе, наоборот, держим горячим, чтобы услышать «старт».
+    if (this.shouldRun && !this._suspended) {
       this.onStateChange('reconnecting');
       this._scheduleRestart();
     }
@@ -185,7 +245,9 @@ export class VoiceFollower {
 
   _scheduleRestart() {
     setTimeout(() => {
-      if (this.shouldRun) this._open();
+      if (this.shouldRun && !this._suspended && !this.recognition) {
+        this._open();
+      }
     }, RESTART_DELAY_MS);
   }
 
@@ -206,9 +268,10 @@ export class VoiceFollower {
   }
 
   _heartbeatTick() {
-    if (!this.shouldRun) return;
-    // На паузе пользователь молчит специально — не считаем это «застряло».
-    // Сбрасываем таймер, чтобы не дёргать recognition зря.
+    if (!this.shouldRun || this._suspended) return;
+    // На мягкой паузе пользователь молчит специально — не считаем это
+    // «застряло». Двигаем точку отсчёта, чтобы не дёргать recognition зря,
+    // но микрофон оставляем живым (его поддерживает _handleEnd).
     if (this.followPaused) {
       this._lastResultTime = Date.now();
       return;

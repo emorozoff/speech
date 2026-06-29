@@ -386,6 +386,14 @@ export async function renderPrompter(root, { id }) {
     engine.stop();
     await acquireScreenLocks();
 
+    // Подстраховка: гасим прошлый экземпляр, если он почему-то остался,
+    // чтобы не запустить два recognition разом — iOS этого не прощает и
+    // новый «молча» не стартует (типичная причина «помогает перезапуск»).
+    if (voice) {
+      voice.stop();
+      voice = null;
+    }
+
     voice = new VoiceFollower({
       scriptBody: script.body || '',
       onPosition: (idx) => {
@@ -660,7 +668,13 @@ export async function renderPrompter(root, { id }) {
   }
 
   async function onVisibility() {
-    if (document.hidden && isPlaying) pause();
+    if (!document.hidden) return;
+    // Уход в фон: останавливаем прокрутку и жёстко отпускаем микрофон
+    // (suspend). Иначе на iOS индикатор записи горит ещё долго после
+    // сворачивания, а recognition пытается «воскреснуть» в фоне.
+    // Вернётся к жизни при следующем тапе Play (voice.resume() внутри play).
+    if (isPlaying) pause();
+    if (voice) voice.suspend();
   }
 
   // Если пользователь нажмёт «назад» в браузере, exit() не вызовется
