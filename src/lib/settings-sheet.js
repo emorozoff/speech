@@ -3,7 +3,7 @@ import { FONTS, getFontStack } from './fonts.js';
 
 const SLIDERS = [
   { key: 'fontSize', label: 'размер шрифта', min: 12, max: 52, step: 1 },
-  { key: 'textWidth', label: 'ширина текста', min: 40, max: 75, step: 5 },
+  { key: 'textWidth', label: 'ширина текста', min: 40, max: 65, step: 5 },
   { key: 'speed', label: 'скорость', min: 1, max: 20, step: 1 },
   { key: 'lineHeight', label: 'межстрочный', min: 1, max: 2.5, step: 0.1 },
 ];
@@ -42,7 +42,8 @@ function buildPreviewSnippet(text) {
 function applyPreviewSettings(textEl, settings) {
   textEl.style.fontSize = `${settings.fontSize}px`;
   textEl.style.lineHeight = String(settings.lineHeight);
-  textEl.style.maxWidth = `${settings.textWidth ?? 90}%`;
+  // 65% — потолок: шире текст в суфлёре не нужен и хуже читается.
+  textEl.style.maxWidth = `${Math.min(65, settings.textWidth ?? 65)}%`;
   textEl.style.fontFamily = getFontStack(settings.font);
 }
 
@@ -198,11 +199,17 @@ function renderFontPicker(currentFont) {
 }
 
 function renderSlider(spec, value) {
+  // Клампим к диапазону, чтобы старое сохранённое значение вне границ
+  // (например, ширина 75 при новом максимуме 65) показывалось согласованно
+  // и в подписи, и в положении ползунка.
+  const n = Number(value);
+  const safe = Number.isFinite(n) ? n : spec.min;
+  const clamped = Math.min(spec.max, Math.max(spec.min, safe));
   return `
     <div class="setting-row setting-row--slider">
       <div class="setting-row__head">
         <span class="setting-row__label">${spec.label}</span>
-        <span class="setting-row__value" data-value-of="${spec.key}">${formatValue(spec.key, value)}</span>
+        <span class="setting-row__value" data-value-of="${spec.key}">${formatValue(spec.key, clamped)}</span>
       </div>
       <input
         type="range"
@@ -211,7 +218,7 @@ function renderSlider(spec, value) {
         min="${spec.min}"
         max="${spec.max}"
         step="${spec.step}"
-        value="${value}"
+        value="${clamped}"
       />
     </div>
   `;

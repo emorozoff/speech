@@ -764,7 +764,9 @@ export async function renderPrompter(root, { id }) {
 function applyTextSettings(textEl, settings) {
   textEl.style.fontSize = `${settings.fontSize}px`;
   textEl.style.lineHeight = String(settings.lineHeight);
-  const width = settings.textWidth ?? 90;
+  // 65% — потолок ширины: шире никогда не нужно и хуже читается. Старые
+  // скрипты могли сохранить 75% — клампим при применении.
+  const width = Math.min(65, settings.textWidth ?? 65);
   textEl.style.maxWidth = `${width}%`;
   textEl.style.fontFamily = getFontStack(settings.font);
 }
