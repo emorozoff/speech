@@ -4,12 +4,13 @@ export const APP_VERSION =
   typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : '0.0.0';
 
 export function formatVersion(v) {
+  // Полный semver с точками: v1.16.7. Без склейки minor+patch — иначе
+  // 1.16.7 читалось как «v1.167».
   const parts = String(v).split('.');
-  const major = Number(parts[0] ?? 0);
-  const minor = Number(parts[1] ?? 0);
-  const patch = Number(parts[2] ?? 0);
-  if (patch === 0) return `v${major}.${minor}`;
-  return `v${major}.${minor}${patch}`;
+  const major = Number(parts[0]) || 0;
+  const minor = Number(parts[1]) || 0;
+  const patch = Number(parts[2]) || 0;
+  return `v${major}.${minor}.${patch}`;
 }
 
 export const APP_VERSION_DISPLAY = formatVersion(APP_VERSION);
