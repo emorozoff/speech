@@ -132,6 +132,30 @@ export async function renderPrompter(root, { id }) {
     return Math.max(0, wordElements.length - 1);
   }
 
+  // На паузе пользователь может пролистать текст пальцем (viewport и так
+  // скроллится нативно) — держим currentWordIdx в курсе, где он оказался,
+  // чтобы при возобновлении (play) голосовое следование продолжило именно
+  // оттуда, а не с точки до перелистывания. Во время самой игры (engine
+  // или voice уже двигают scroll программно) этот пересчёт не нужен и
+  // может конфликтовать с их собственной анимацией — поэтому только
+  // когда !isPlaying. rAF схлопывает частые scroll-события в одну
+  // проверку за кадр.
+  let scrollSyncScheduled = false;
+  function scheduleScrollSync() {
+    if (isPlaying || scrollSyncScheduled) return;
+    scrollSyncScheduled = true;
+    requestAnimationFrame(() => {
+      scrollSyncScheduled = false;
+      if (isPlaying) return;
+      const idx = findWordIndexAtScroll(viewport.scrollTop);
+      if (idx !== currentWordIdx) {
+        currentWordIdx = idx;
+        setCurrentWord(idx);
+        if (voice) voice.setCursor(idx);
+      }
+    });
+  }
+
   function applyResume() {
     const max = viewport.scrollHeight - viewport.clientHeight;
     if (max <= 0) return;
@@ -253,8 +277,16 @@ export async function renderPrompter(root, { id }) {
     section.classList.add('prompter--playing');
     await acquireScreenLocks();
     if (settings.voiceFollow) {
-      if (!voice) await enableVoice();
-      else voice.resume();
+      if (!voice) {
+        await enableVoice();
+      } else {
+        // Пользователь мог полистать текст пальцем во время паузы —
+        // scheduleScrollSync уже обновил currentWordIdx/voice.cursor на
+        // лету, но подстрахуемся: setCursor идемпотентен и ничего не
+        // ломает, если пользователь не листал вообще.
+        voice.setCursor(currentWordIdx);
+        voice.resume();
+      }
     } else {
       engine.start();
     }
@@ -644,6 +676,7 @@ export async function renderPrompter(root, { id }) {
     window.removeEventListener('hashchange', onHashChange);
     document.removeEventListener('visibilitychange', onVisibility);
     viewport.removeEventListener('scroll', updateProgressAndTimer);
+    viewport.removeEventListener('scroll', scheduleScrollSync);
     if (wakeLock) {
       await releaseWakeLock(wakeLock);
       wakeLock = null;
@@ -690,6 +723,7 @@ export async function renderPrompter(root, { id }) {
   window.addEventListener('hashchange', onHashChange);
   document.addEventListener('visibilitychange', onVisibility);
   viewport.addEventListener('scroll', updateProgressAndTimer, { passive: true });
+  viewport.addEventListener('scroll', scheduleScrollSync, { passive: true });
 
   // settings.voiceFollow auto-enable удалено: микрофон требует
   // явного user gesture, иначе iOS может молча отказать.

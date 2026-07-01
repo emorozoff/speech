@@ -149,3 +149,27 @@ test('findBestPositionInRange: импровизация — низкий score, 
   const r = findBestPositionInRange(script, buffer, 0, 10);
   assert.ok(r.score < 0.4, `score ${r.score} должен быть низкий`);
 });
+
+test('findBestPositionInRange: при ничьей по умолчанию побеждает ближайшая к startIdx', () => {
+  // Фраза повторяется дважды — оба вхождения дают score=1 (настоящая
+  // «ничья»). Без preferNearEnd побеждает первое (ближе к началу диапазона).
+  const script = tokenize(
+    'привет друзья сегодня расскажу привет друзья сегодня расскажу конец',
+  );
+  const buffer = tokenize('привет друзья сегодня расскажу');
+  const r = findBestPositionInRange(script, buffer, 0, script.length);
+  assert.equal(r.score, 1);
+  assert.equal(r.pos, 3, 'ближайшее к startIdx вхождение');
+});
+
+test('findBestPositionInRange: preferNearEnd — при ничьей побеждает ближайшая к endIdx', () => {
+  const script = tokenize(
+    'привет друзья сегодня расскажу привет друзья сегодня расскажу конец',
+  );
+  const buffer = tokenize('привет друзья сегодня расскажу');
+  const r = findBestPositionInRange(script, buffer, 0, script.length, {
+    preferNearEnd: true,
+  });
+  assert.equal(r.score, 1);
+  assert.equal(r.pos, 7, 'ближайшее к endIdx вхождение');
+});

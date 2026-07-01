@@ -3,8 +3,12 @@ import { tokenize, findBestPositionInRange } from './voice-matching.js';
 import { detectCommand } from './voice-commands.js';
 
 const BUFFER_SIZE = 5;
-const LOOKAHEAD = 30;
-const LOOKBACK = 50;
+// Достаточно широко, чтобы поймать переход на текст на много строк
+// вперёд/назад (пропуск абзаца, возврат перечитать кусок), а не только
+// соседнее слово. Раньше было 30/50 — жалоба была именно на то, что
+// суфлёр не находил текст, если начать читать издалека.
+const LOOKAHEAD = 100;
+const LOOKBACK = 150;
 const MATCH_THRESHOLD = 0.4;
 // Для прыжка назад нужен заметно более уверенный матч + минимум разных
 // слов (иначе повторение «и… и… и…» утащит в начало скрипта).
@@ -208,6 +212,10 @@ export class VoiceFollower {
       this.recentWords,
       Math.max(0, this.cursor - LOOKBACK),
       this.cursor,
+      // При нескольких позициях с одинаковым счётом предпочитаем ту, что
+      // ближе к курсору (концу диапазона) — иначе с широким LOOKBACK
+      // «ничья» по умолчанию уводила бы в самую дальнюю точку диапазона.
+      { preferNearEnd: true },
     );
     if (
       backward.score >= BACKWARD_THRESHOLD &&

@@ -70,11 +70,23 @@ function alignmentDetail(scriptTokens, recognizedBuffer, hypothesizedEnd) {
 
 // Ищет лучшую позицию конца буфера в полуоткрытом диапазоне [startIdx, endIdx).
 // Возвращает { pos, score, unique }.
+//
+// score — это matches/BUFFER_SIZE, то есть всего 6 возможных значений
+// (0, 0.2, 0.4, ... 1), поэтому «ничьи» между позициями — обычное дело,
+// особенно в широком диапазоне. preferNearEnd управляет тем, какая из
+// одинаково хороших позиций побеждает:
+//  - false (по умолчанию) — ближайшая к startIdx. Подходит для forward-
+//    поиска: курсор стоит в начале диапазона, и на ничьей должна
+//    выигрывать ближайшая позиция, а не самая дальняя вперёд.
+//  - true — ближайшая к endIdx. Нужно для backward-поиска: там курсор
+//    стоит в конце диапазона (endIdx), и «ничья» без этого флага уводила
+//    бы к самой дальней точке назад вместо ближайшей.
 export function findBestPositionInRange(
   scriptTokens,
   recognizedBuffer,
   startIdx,
   endIdx,
+  { preferNearEnd = false } = {},
 ) {
   const start = Math.max(0, startIdx);
   const end = Math.min(endIdx, scriptTokens.length);
@@ -90,7 +102,8 @@ export function findBestPositionInRange(
   let bestUnique = 0;
   for (let p = start; p < end; p++) {
     const { score, unique } = alignmentDetail(scriptTokens, recognizedBuffer, p);
-    if (score > bestScore) {
+    const better = preferNearEnd ? score >= bestScore : score > bestScore;
+    if (better) {
       bestScore = score;
       bestPos = p;
       bestUnique = unique;
