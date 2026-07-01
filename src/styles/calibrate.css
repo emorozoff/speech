@@ -119,8 +119,11 @@
 }
 
 .calibrate__word--current {
+  /* Только цвет, без font-weight: смена насыщенности меняет ширину
+     глифов, а значит и точку переноса строки — весь абзац «прыгал»
+     при каждом переходе на новое слово. В суфлёре (.prompter__word)
+     та же логика — там жирности нет специально. */
   color: var(--color-accent);
-  font-weight: var(--fw-semibold);
 }
 
 .calibrate__reading-actions {
