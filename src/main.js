@@ -60,7 +60,21 @@ let updateReady = false;
 let bannerEl = null;
 
 if ('serviceWorker' in navigator) {
+  // controllerchange срабатывает в двух разных случаях: (1) эта вкладка
+  // получает контроллер ВПЕРВЫЕ (самая первая установка SW — никакого
+  // обновления тут нет) и (2) старый SW реально сменился новым (вот это
+  // настоящее обновление). Различаем их: если на момент подписки
+  // controller уже был — значит страница открылась под уже работающим
+  // SW, и следующая смена контроллера это правда новая версия. Если
+  // controller ещё null — первая же смена это просто первичная установка,
+  // её пропускаем и ждём следующую.
+  const hadControllerAtStart = !!navigator.serviceWorker.controller;
+  let sawFirstControllerChange = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadControllerAtStart && !sawFirstControllerChange) {
+      sawFirstControllerChange = true;
+      return;
+    }
     updateReady = true;
     syncReloadBanner();
   });

@@ -159,6 +159,19 @@
   position: relative;
   display: flex;
   align-items: stretch;
+  /* Без этого — реальный источник «наезжающего» текста в карточках:
+     .library__list это flex-column с overflow-y:auto. Когда суммарная
+     высота карточек превышает выделенное ей место, браузер по спецификации
+     сжимает flex-детей вместо того, чтобы просто дать списку скроллиться.
+     У .card__title/.card__preview стоит overflow:hidden — а элементы
+     с overflow≠visible получают автоматический min-height:0 (тоже по
+     спецификации), поэтому сжатие может увести их высоту в 0 — заголовок
+     и превью визуально пропадают/наезжают, а .card__meta (без overflow)
+     остаётся на месте. Подтверждено воспроизведением: ровно с 9-10+
+     карточек на экране высотой с iPhone. flex-shrink:0 запрещает сжимать
+     саму карточку — список скроллится, как и задумано, карточки не трогает.
+  */
+  flex-shrink: 0;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
@@ -206,12 +219,16 @@
   font-size: var(--fs-sm);
   color: var(--color-fg-dim);
   line-height: 1.4;
-  /* Ровно две строки через max-height, без -webkit-box/line-clamp.
-     На iOS Safari `display:-webkit-box` как flex-ребёнок неверно считает
-     высоту и наезжает на соседей — текст превью наползал на заголовок. */
-  max-height: 2.8em; /* 2 строки × line-height 1.4 */
-  min-height: 0; /* чтобы flex min-content не переопределил max-height */
+  /* Одна строка с многоточием — та же техника, что у заголовка. Раньше
+     здесь был кламп по высоте (max-height:2.8em на 2 строки, до этого —
+     -webkit-line-clamp): оба варианта требуют знать точную высоту строки
+     заранее, а строка того же height:0-сжатия (см. flex-shrink на .card
+     выше) обрезала контент непредсказуемо. Однострочный nowrap+ellipsis
+     не зависит от расчёта высоты вообще — его высота всегда равна одной
+     настоящей строке текста. */
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .card__preview--placeholder {
