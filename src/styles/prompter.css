@@ -13,6 +13,12 @@
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  /* mirrorH/mirrorV (по умолчанию mirrorH включён) применяют transform к
+     родителю .prompter__mirror-wrap. На iOS Safari есть давний класс
+     багов, где скроллящийся потомок transform'нутого предка перестаёт
+     реагировать на тач-скролл вообще. Свой compositing layer на самом
+     скроллящемся элементе — стандартный обход этой проблемы. */
+  will-change: transform;
 }
 
 .prompter__viewport::-webkit-scrollbar {

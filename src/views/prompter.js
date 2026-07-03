@@ -123,11 +123,21 @@ export async function renderPrompter(root, { id }) {
     );
   }
 
-  function findWordIndexAtScroll(scrollTop) {
-    const target = scrollTop + readingLineY();
+  function findWordIndexAtScroll() {
+    // offsetTop тут не годится: .prompter__shift держит will-change:transform
+    // (нужен для sub-pixel скролла), а это по спецификации делает его
+    // containing block/offsetParent для слов внутри — offsetTop слова
+    // отсчитывался от .prompter__shift, а не от viewport, и полностью
+    // терял высоту pad-top (обычно ~половина экрана). Из-за этого позиция
+    // после resume/ручного скролла всегда была ошибочной. getBoundingClientRect
+    // (как уже в scrollToWord ниже) не зависит от containing block и всегда
+    // даёт настоящую позицию.
+    const target = viewport.scrollTop + readingLineY();
+    const viewportTop = viewport.getBoundingClientRect().top;
     for (let i = 0; i < wordElements.length; i++) {
-      const w = wordElements[i];
-      if (w.offsetTop + w.offsetHeight >= target) return i;
+      const wordRect = wordElements[i].getBoundingClientRect();
+      const wordBottom = viewport.scrollTop + (wordRect.bottom - viewportTop);
+      if (wordBottom >= target) return i;
     }
     return Math.max(0, wordElements.length - 1);
   }
@@ -147,7 +157,7 @@ export async function renderPrompter(root, { id }) {
     requestAnimationFrame(() => {
       scrollSyncScheduled = false;
       if (isPlaying) return;
-      const idx = findWordIndexAtScroll(viewport.scrollTop);
+      const idx = findWordIndexAtScroll();
       if (idx !== currentWordIdx) {
         currentWordIdx = idx;
         setCurrentWord(idx);
@@ -161,7 +171,7 @@ export async function renderPrompter(root, { id }) {
     if (max <= 0) return;
     const targetScroll = stored * max;
     viewport.scrollTop = targetScroll;
-    const idx = findWordIndexAtScroll(targetScroll);
+    const idx = findWordIndexAtScroll();
     currentWordIdx = idx;
     setCurrentWord(idx);
   }
