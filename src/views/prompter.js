@@ -31,6 +31,10 @@ const TEXT_OFFSET_STEP = 30;
 const TEXT_OFFSET_Y_STEP = 10;
 const TEXT_OFFSET_MAX = 200;
 const CONTROLS_HIDE_AFTER_MS = 2500;
+// Сколько ждать «тишины» скролла после отпускания пальца, прежде чем
+// считать листание завершённым и перепривязать курсор голоса. Достаточно,
+// чтобы дать инерции (momentum) на iOS затухнуть.
+const SCROLL_SETTLE_MS = 250;
 
 export async function renderPrompter(root, { id }) {
   const [script, profile] = await Promise.all([getScript(id), getProfile()]);
@@ -142,28 +146,78 @@ export async function renderPrompter(root, { id }) {
     return Math.max(0, wordElements.length - 1);
   }
 
-  // На паузе пользователь может пролистать текст пальцем (viewport и так
-  // скроллится нативно) — держим currentWordIdx в курсе, где он оказался,
-  // чтобы при возобновлении (play) голосовое следование продолжило именно
-  // оттуда, а не с точки до перелистывания. Во время самой игры (engine
-  // или voice уже двигают scroll программно) этот пересчёт не нужен и
-  // может конфликтовать с их собственной анимацией — поэтому только
-  // когда !isPlaying. rAF схлопывает частые scroll-события в одну
-  // проверку за кадр.
+  // Ручной скролл пальцем работает в двух ситуациях:
+  //  • На паузе — держим currentWordIdx на слове у линии чтения, чтобы
+  //    после play следование продолжило с пролистанного места.
+  //  • Во время голосового следования — пользователь может пролистать
+  //    текст (например, вернуться назад), и суфлёр НЕ должен перебивать
+  //    его своим авто-скроллом. Пока палец тянет текст и пока едет инерция
+  //    после отпускания — авто-скролл подавляется (см. onPosition), а как
+  //    только скролл замрёт, курсор голоса перепривязывается на новую
+  //    позицию, и распознавание ищет уже оттуда.
+  let voiceScrolling = false; // палец листает во время следования
+  let scrollSettleTimer = null; // сработает, когда скролл замрёт после отпускания
   let scrollSyncScheduled = false;
-  function scheduleScrollSync() {
-    if (isPlaying || scrollSyncScheduled) return;
+
+  function reanchorToScroll() {
+    const idx = findWordIndexAtScroll();
+    if (idx !== currentWordIdx) {
+      currentWordIdx = idx;
+      setCurrentWord(idx);
+    }
+    if (voice) voice.setCursor(idx);
+  }
+
+  function endVoiceScroll() {
+    scrollSettleTimer = null;
+    voiceScrolling = false;
+    reanchorToScroll();
+  }
+
+  function onViewportScroll() {
+    updateProgressAndTimer();
+    // Двигать курсор от скролла можно, когда: на паузе (движок стоит) либо
+    // пользователь листает пальцем во время следования. Программный
+    // авто-скролл суфлёра (scrollToWord) сюда не относится — voiceScrolling
+    // ставится только из touchmove, поэтому этот scroll игнорируется.
+    const userDriven = !isPlaying || voiceScrolling;
+    if (!userDriven) return;
+    // Инерция после отпускания пальца ещё едет — продлеваем сессию, чтобы
+    // финальная перепривязка случилась только когда скролл реально замрёт.
+    if (voiceScrolling && scrollSettleTimer) {
+      clearTimeout(scrollSettleTimer);
+      scrollSettleTimer = setTimeout(endVoiceScroll, SCROLL_SETTLE_MS);
+    }
+    if (scrollSyncScheduled) return;
     scrollSyncScheduled = true;
     requestAnimationFrame(() => {
       scrollSyncScheduled = false;
-      if (isPlaying) return;
-      const idx = findWordIndexAtScroll();
-      if (idx !== currentWordIdx) {
-        currentWordIdx = idx;
-        setCurrentWord(idx);
-        if (voice) voice.setCursor(idx);
-      }
+      if (!(!isPlaying || voiceScrolling)) return;
+      reanchorToScroll();
     });
+  }
+
+  function onViewportTouchMove() {
+    // Сессия ручного листания нужна только во время голосового следования —
+    // на паузе scroll и так пользовательский, а в engine-режиме листание
+    // не поддерживаем (там регулируют скорость).
+    if (!(isPlaying && settings.voiceFollow && voice)) return;
+    if (!voiceScrolling) {
+      voiceScrolling = true;
+      scroller.cancel(); // стоп конфликтующей авто-анимации суфлёра
+    }
+    // Палец на экране — таймер затухания не заводим (заведём на touchend).
+    if (scrollSettleTimer) {
+      clearTimeout(scrollSettleTimer);
+      scrollSettleTimer = null;
+    }
+  }
+
+  function onViewportTouchEnd() {
+    if (!voiceScrolling) return;
+    // Палец отпущен: ждём затухания инерции, затем финально перепривязываем.
+    if (scrollSettleTimer) clearTimeout(scrollSettleTimer);
+    scrollSettleTimer = setTimeout(endVoiceScroll, SCROLL_SETTLE_MS);
   }
 
   function applyResume() {
@@ -291,7 +345,7 @@ export async function renderPrompter(root, { id }) {
         await enableVoice();
       } else {
         // Пользователь мог полистать текст пальцем во время паузы —
-        // scheduleScrollSync уже обновил currentWordIdx/voice.cursor на
+        // onViewportScroll уже обновил currentWordIdx/voice.cursor на
         // лету, но подстрахуемся: setCursor идемпотентен и ничего не
         // ломает, если пользователь не листал вообще.
         voice.setCursor(currentWordIdx);
@@ -439,6 +493,10 @@ export async function renderPrompter(root, { id }) {
     voice = new VoiceFollower({
       scriptBody: script.body || '',
       onPosition: (idx) => {
+        // Пользователь листает пальцем — не перебиваем его авто-скроллом.
+        // Курсор перепривяжется на его позицию, когда листание завершится
+        // (endVoiceScroll), и следование продолжит уже оттуда.
+        if (voiceScrolling) return;
         currentWordIdx = idx;
         setCurrentWord(idx);
         scrollToWord(idx);
@@ -685,8 +743,11 @@ export async function renderPrompter(root, { id }) {
     window.removeEventListener('resize', updatePadding);
     window.removeEventListener('hashchange', onHashChange);
     document.removeEventListener('visibilitychange', onVisibility);
-    viewport.removeEventListener('scroll', updateProgressAndTimer);
-    viewport.removeEventListener('scroll', scheduleScrollSync);
+    viewport.removeEventListener('scroll', onViewportScroll);
+    viewport.removeEventListener('touchmove', onViewportTouchMove);
+    viewport.removeEventListener('touchend', onViewportTouchEnd);
+    viewport.removeEventListener('touchcancel', onViewportTouchEnd);
+    if (scrollSettleTimer) clearTimeout(scrollSettleTimer);
     if (wakeLock) {
       await releaseWakeLock(wakeLock);
       wakeLock = null;
@@ -732,8 +793,12 @@ export async function renderPrompter(root, { id }) {
   window.addEventListener('resize', updatePadding);
   window.addEventListener('hashchange', onHashChange);
   document.addEventListener('visibilitychange', onVisibility);
-  viewport.addEventListener('scroll', updateProgressAndTimer, { passive: true });
-  viewport.addEventListener('scroll', scheduleScrollSync, { passive: true });
+  // onViewportScroll сам вызывает updateProgressAndTimer, поэтому отдельный
+  // слушатель на прогресс не нужен.
+  viewport.addEventListener('scroll', onViewportScroll, { passive: true });
+  viewport.addEventListener('touchmove', onViewportTouchMove, { passive: true });
+  viewport.addEventListener('touchend', onViewportTouchEnd, { passive: true });
+  viewport.addEventListener('touchcancel', onViewportTouchEnd, { passive: true });
 
   // settings.voiceFollow auto-enable удалено: микрофон требует
   // явного user gesture, иначе iOS может молча отказать.

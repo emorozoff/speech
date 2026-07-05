@@ -330,3 +330,66 @@ test('backward-поиск: при нескольких повторах фраз
     v.stop();
   }
 });
+
+// Минимум 3 разных совпавших слова, чтобы вообще сдвинуть курсор. Слова
+// «бабушка испекла пирог» стоят на позициях 12-14 и в первых 50 словах
+// встречаются только там — удобно проверять точное число слов для прыжка.
+test('forward: одно слово НЕ двигает курсор (мало совпадений)', () => {
+  const v = new VoiceFollower({ scriptBody: LONG_PASSAGE });
+  try {
+    v.start();
+    v.setCursor(0);
+    speak(FakeRecognition.instances[0], 'бабушка');
+    assert.equal(v.cursor, 0, 'на одном слове курсор стоит на месте');
+  } finally {
+    v.stop();
+  }
+});
+
+test('forward: два слова НЕ двигают курсор', () => {
+  const v = new VoiceFollower({ scriptBody: LONG_PASSAGE });
+  try {
+    v.start();
+    v.setCursor(0);
+    speak(FakeRecognition.instances[0], 'бабушка испекла');
+    assert.equal(v.cursor, 0, 'двух слов недостаточно для прыжка');
+  } finally {
+    v.stop();
+  }
+});
+
+test('forward: три слова двигают курсор', () => {
+  const v = new VoiceFollower({ scriptBody: LONG_PASSAGE });
+  try {
+    v.start();
+    v.setCursor(0);
+    speak(FakeRecognition.instances[0], 'бабушка испекла пирог');
+    assert.equal(v.cursor, 14, 'три совпавших слова — прыжок разрешён');
+  } finally {
+    v.stop();
+  }
+});
+
+test('backward: одно слово НЕ утаскивает курсор назад', () => {
+  const v = new VoiceFollower({ scriptBody: LONG_PASSAGE });
+  try {
+    v.start();
+    v.setCursor(30);
+    speak(FakeRecognition.instances[0], 'бабушка');
+    assert.equal(v.cursor, 30, 'на одном слове назад не прыгаем');
+  } finally {
+    v.stop();
+  }
+});
+
+test('backward: три слова разрешают прыжок назад', () => {
+  const v = new VoiceFollower({ scriptBody: LONG_PASSAGE });
+  try {
+    v.start();
+    v.setCursor(30);
+    speak(FakeRecognition.instances[0], 'бабушка испекла пирог');
+    assert.equal(v.cursor, 14, 'три совпавших слова — прыжок назад разрешён');
+  } finally {
+    v.stop();
+  }
+});

@@ -9,11 +9,14 @@ const BUFFER_SIZE = 5;
 // через несколько строк), но без скачков через полтекста.
 const LOOKAHEAD = 50;
 const LOOKBACK = 100;
-const MATCH_THRESHOLD = 0.4;
-// Для прыжка назад нужен заметно более уверенный матч + минимум разных
-// слов (иначе повторение «и… и… и…» утащит в начало скрипта).
+// Минимум РАЗНЫХ совпавших слов, чтобы вообще сдвинуть курсор — и вперёд,
+// и назад. Одного-двух совпавших слов (тем более коротких «и»/«на»)
+// недостаточно: именно на них суфлёр раньше срывался далеко не туда.
+// Требуем три осмысленных слова подряд — тогда прыжок точно оправдан.
+const MIN_MATCH_WORDS = 3;
+// Прыжок назад — более рискованный (легко улететь в начало на повторах),
+// поэтому вдобавок к MIN_MATCH_WORDS держим высокий порог по score.
 const BACKWARD_THRESHOLD = 0.7;
-const MIN_UNIQUE_FOR_BACKWARD = 3;
 const RESTART_DELAY_MS = 250;
 const COMMAND_COOLDOWN_MS = 2000;
 // start() на iOS бросает InvalidStateError, если прошлый recognition ещё
@@ -189,7 +192,9 @@ export class VoiceFollower {
 
     // Forward имеет приоритет: если впереди есть нормальный матч —
     // продолжаем как обычно. Это покрывает 99% сценариев и защищает
-    // от ложных прыжков назад при импровизации.
+    // от ложных прыжков назад при импровизации. Но двигаемся только когда
+    // совпали хотя бы MIN_MATCH_WORDS разных слов — иначе на одном-двух
+    // словах суфлёр «убегал» вперёд к случайно похожему куску.
     const forward = findBestPositionInRange(
       this.scriptTokens,
       this.recentWords,
@@ -197,7 +202,7 @@ export class VoiceFollower {
       this.cursor + LOOKAHEAD,
     );
 
-    if (forward.score >= MATCH_THRESHOLD) {
+    if (forward.unique >= MIN_MATCH_WORDS) {
       this.cursor = forward.pos;
       this.onPosition(forward.pos, forward.score);
       return;
@@ -219,7 +224,7 @@ export class VoiceFollower {
     );
     if (
       backward.score >= BACKWARD_THRESHOLD &&
-      backward.unique >= MIN_UNIQUE_FOR_BACKWARD
+      backward.unique >= MIN_MATCH_WORDS
     ) {
       this.cursor = backward.pos;
       this.onPosition(backward.pos, backward.score);
