@@ -1,17 +1,28 @@
 import { listScripts, importScript } from '../storage/scripts.js';
 import { getProfile, saveWpm } from '../storage/profile.js';
+import {
+  getGlobalSettings,
+  saveGlobalSettings,
+  hasStoredSettings,
+} from '../storage/settings.js';
 import { APP_VERSION } from './version.js';
 
 const FORMAT = 'speech-backup';
 const FORMAT_VERSION = 1;
 
 export async function buildBackup() {
-  const [scripts, profile] = await Promise.all([listScripts(), getProfile()]);
+  const [scripts, profile, settings] = await Promise.all([
+    listScripts(),
+    getProfile(),
+    getGlobalSettings(),
+  ]);
   return {
     format: FORMAT,
     version: FORMAT_VERSION,
     exportedAt: new Date().toISOString(),
     appVersion: APP_VERSION,
+    // Глобальные настройки отображения — одни на все сценарии.
+    settings,
     scripts: scripts.map((s) => ({
       id: s.id,
       title: s.title ?? '',
@@ -103,5 +114,15 @@ export async function importLibrary(parsed) {
     }
   }
 
-  return { importedScripts, importedProfile };
+  // Глобальные настройки восстанавливаем только если на этом устройстве их
+  // ещё нет — чтобы импорт не затирал уже настроенный вид (как и с профилем).
+  let importedSettings = false;
+  if (parsed.settings && typeof parsed.settings === 'object') {
+    if (!(await hasStoredSettings())) {
+      await saveGlobalSettings(parsed.settings);
+      importedSettings = true;
+    }
+  }
+
+  return { importedScripts, importedProfile, importedSettings };
 }

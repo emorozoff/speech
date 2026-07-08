@@ -1,8 +1,8 @@
 import {
   getScript,
   updateScript,
-  DEFAULT_SETTINGS,
 } from '../storage/scripts.js';
+import { getGlobalSettings, saveGlobalSettings } from '../storage/settings.js';
 import { navigate } from '../lib/router.js';
 import { escapeHtml } from '../lib/format.js';
 import { debounce } from '../lib/debounce.js';
@@ -21,8 +21,12 @@ export async function renderEditor(root, { id }) {
   const state = {
     title: script.title ?? '',
     body: script.body ?? '',
-    settings: { ...DEFAULT_SETTINGS, ...(script.settings ?? {}) },
+    // Настройки отображения — глобальные, одни на все сценарии.
+    settings: await getGlobalSettings(),
   };
+
+  // Изменения настроек сохраняются глобально (отдельно от тела сценария).
+  const saveSettings = debounce(() => saveGlobalSettings(state.settings), 400);
 
   let indicatorTimer = null;
   const setIndicator = (state) => {
@@ -51,7 +55,6 @@ export async function renderEditor(root, { id }) {
     await updateScript(id, {
       title: state.title,
       body: state.body,
-      settings: state.settings,
     });
     setIndicator('saved');
   }, 300);
@@ -78,10 +81,10 @@ export async function renderEditor(root, { id }) {
     const action = e.target.closest('[data-action]')?.dataset.action;
     if (!action) return;
     if (action === 'back') {
-      await save.flush();
+      await Promise.all([save.flush(), saveSettings.flush()]);
       navigate('/');
     } else if (action === 'start') {
-      await save.flush();
+      await Promise.all([save.flush(), saveSettings.flush()]);
       navigate(`/prompter/${id}`);
     } else if (action === 'settings-open') {
       openSettings({
@@ -89,9 +92,10 @@ export async function renderEditor(root, { id }) {
         settings: state.settings,
         previewText: state.body,
         onChange: (key, value) => {
+          // Настройки глобальные — сохраняем их отдельно, не трогая
+          // индикатор сохранения тела сценария.
           state.settings[key] = value;
-          setIndicator('saving');
-          save();
+          saveSettings();
         },
       });
     } else if (action === 'paste') {

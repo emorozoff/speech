@@ -1,7 +1,10 @@
 const DB_NAME = 'speech';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 export const STORE_SCRIPTS = 'scripts';
 export const STORE_PROFILE = 'profile';
+// Единые для всех сценариев настройки отображения текста (размер, ширина,
+// сдвиги, зеркало, скорость и т.д.). Хранятся одной записью (id: 'display').
+export const STORE_SETTINGS = 'settings';
 
 let dbPromise = null;
 
@@ -21,6 +24,11 @@ function openDb() {
       if (oldVersion < 2) {
         if (!db.objectStoreNames.contains(STORE_PROFILE)) {
           db.createObjectStore(STORE_PROFILE, { keyPath: 'id' });
+        }
+      }
+      if (oldVersion < 3) {
+        if (!db.objectStoreNames.contains(STORE_SETTINGS)) {
+          db.createObjectStore(STORE_SETTINGS, { keyPath: 'id' });
         }
       }
     };

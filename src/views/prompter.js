@@ -1,9 +1,8 @@
 import {
   getScript,
-  updateScript,
   setLastPosition,
-  DEFAULT_SETTINGS,
 } from '../storage/scripts.js';
+import { getGlobalSettings, saveGlobalSettings } from '../storage/settings.js';
 import { getProfile, DEFAULT_WPM } from '../storage/profile.js';
 import { navigate } from '../lib/router.js';
 import { escapeHtml } from '../lib/format.js';
@@ -37,13 +36,17 @@ const CONTROLS_HIDE_AFTER_MS = 2500;
 const SCROLL_SETTLE_MS = 250;
 
 export async function renderPrompter(root, { id }) {
-  const [script, profile] = await Promise.all([getScript(id), getProfile()]);
+  const [script, profile, settings] = await Promise.all([
+    getScript(id),
+    getProfile(),
+    // Настройки отображения — глобальные, одни на все сценарии.
+    getGlobalSettings(),
+  ]);
   if (!script) {
     navigate('/', { replace: true });
     return;
   }
 
-  const settings = { ...DEFAULT_SETTINGS, ...(script.settings ?? {}) };
   // Защита от испорченного профиля (wpm: 0 ломал бы расчёт времени).
   const wpm = Math.max(1, profile?.wpm ?? DEFAULT_WPM);
   let isPlaying = false;
@@ -65,7 +68,7 @@ export async function renderPrompter(root, { id }) {
   let canResume = stored >= 0.05 && stored < 0.98 && !lengthDrift;
 
   const persistSettings = debounce(async () => {
-    await updateScript(id, { settings });
+    await saveGlobalSettings(settings);
   }, 500);
 
   root.innerHTML = renderTemplate(script, settings);

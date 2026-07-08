@@ -6,12 +6,14 @@ import {
   dbClear,
   STORE_SCRIPTS,
   STORE_PROFILE,
+  STORE_SETTINGS,
 } from '../src/storage/db.js';
 import {
   createScript,
   listScripts,
 } from '../src/storage/scripts.js';
 import { saveWpm, getProfile } from '../src/storage/profile.js';
+import { getGlobalSettings } from '../src/storage/settings.js';
 import {
   buildBackup,
   backupFilename,
@@ -22,6 +24,7 @@ import {
 beforeEach(async () => {
   await dbClear(STORE_SCRIPTS);
   await dbClear(STORE_PROFILE);
+  await dbClear(STORE_SETTINGS);
 });
 
 test('backupFilename: формат YYYY-MM-DD', () => {
@@ -178,6 +181,42 @@ test('roundtrip: build → parse → import даёт те же скрипты', 
   assert.equal(list.length, 2);
   const titles = list.map((s) => s.title).sort();
   assert.deepEqual(titles, ['A', 'B']);
+});
+
+test('buildBackup: включает глобальные настройки', async () => {
+  const backup = await buildBackup();
+  assert.ok(backup.settings, 'в бэкапе есть глобальные настройки');
+  assert.equal(backup.settings.fontSize, 40); // дефолт
+});
+
+test('importLibrary: восстанавливает настройки на пустом устройстве', async () => {
+  const parsed = {
+    format: 'speech-backup',
+    version: 1,
+    settings: { fontSize: 33, textWidth: 50, mirrorH: false },
+    scripts: [],
+  };
+  const result = await importLibrary(parsed);
+  assert.equal(result.importedSettings, true);
+  const settings = await getGlobalSettings();
+  assert.equal(settings.fontSize, 33);
+  assert.equal(settings.textWidth, 50);
+  assert.equal(settings.mirrorH, false);
+});
+
+test('importLibrary: НЕ затирает уже настроенные настройки', async () => {
+  // На устройстве уже что-то настроено (запись создана).
+  await getGlobalSettings();
+  const parsed = {
+    format: 'speech-backup',
+    version: 1,
+    settings: { fontSize: 99 },
+    scripts: [],
+  };
+  const result = await importLibrary(parsed);
+  assert.equal(result.importedSettings, false);
+  const settings = await getGlobalSettings();
+  assert.equal(settings.fontSize, 40, 'осталось дефолтное, не затёрто из бэкапа');
 });
 
 test('roundtrip: lastPosition сохраняется через бэкап', async () => {
