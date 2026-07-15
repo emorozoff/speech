@@ -1,5 +1,6 @@
 import {
   getScript,
+  updateScript,
   setLastPosition,
 } from '../storage/scripts.js';
 import { getGlobalSettings, saveGlobalSettings } from '../storage/settings.js';
@@ -19,6 +20,7 @@ import {
   releaseWakeLock,
 } from '../lib/screen.js';
 import { openSettings } from '../lib/settings-sheet.js';
+import { showConfirmModal } from '../lib/confirm-modal.js';
 
 const FONT_SIZE_STEP = 2;
 const FONT_SIZE_MIN = 12;
@@ -34,6 +36,10 @@ const CONTROLS_HIDE_AFTER_MS = 2500;
 // считать листание завершённым и перепривязать курсор голоса. Достаточно,
 // чтобы дать инерции (momentum) на iOS затухнуть.
 const SCROLL_SETTLE_MS = 250;
+// Тот же ключ, что у кнопки «из буфера» в редакторе: предупреждение о
+// замене текста показывается один раз на всё приложение, где бы кнопку
+// ни нажали впервые.
+const FAST_PASTE_WARNING_KEY = 'speech.fastPasteWarningShown';
 
 export async function renderPrompter(root, { id }) {
   const [script, profile, settings] = await Promise.all([
@@ -63,7 +69,8 @@ export async function renderPrompter(root, { id }) {
   // и тело скрипта не было сильно переписано после паузы.
   const stored = typeof script.lastPosition === 'number' ? script.lastPosition : 0;
   const storedLen = typeof script.lastBodyLength === 'number' ? script.lastBodyLength : 0;
-  const currentLen = (script.body ?? '').length;
+  // let — кнопка «вставить из буфера» заменяет весь текст на лету.
+  let currentLen = (script.body ?? '').length;
   const lengthDrift = storedLen > 0 && Math.abs(currentLen - storedLen) > Math.max(50, currentLen * 0.1);
   let canResume = stored >= 0.05 && stored < 0.98 && !lengthDrift;
 
@@ -87,7 +94,8 @@ export async function renderPrompter(root, { id }) {
   const progressTopEl = section.querySelector('[data-role="progress-top"]');
   const progressBottomEl = section.querySelector('[data-role="progress-bottom"]');
   const timerEl = section.querySelector('[data-role="timer"]');
-  const wordElements = textEl.querySelectorAll('.prompter__word');
+  // let — пересобирается после «вставить из буфера» (текст заменяется).
+  let wordElements = textEl.querySelectorAll('.prompter__word');
   totalWords = wordElements.length;
   totalSeconds = wpm > 0 ? (totalWords / wpm) * 60 : 0;
 
@@ -628,6 +636,85 @@ export async function renderPrompter(root, { id }) {
     clearCurrentWord();
   };
 
+  // «Вставить из буфера» прямо в суфлёре: телефон стоит в стекле, текст
+  // поправили на маке и скопировали (Universal Clipboard) — одна кнопка
+  // заменяет весь сценарий и возвращает чтение в самое начало.
+  const pasteAndReplace = async () => {
+    if (!navigator.clipboard || !navigator.clipboard.readText) {
+      showCommandToast('буфер недоступен');
+      return;
+    }
+    let text;
+    try {
+      text = await navigator.clipboard.readText();
+    } catch {
+      showCommandToast('нет доступа к буферу');
+      return;
+    }
+    if (!text || !text.trim()) {
+      showCommandToast('в буфере пусто');
+      return;
+    }
+
+    // Первое использование (здесь или в редакторе — ключ общий) —
+    // предупреждаем, что старый текст будет заменён. Дальше молча.
+    const hasExisting = (script.body ?? '').trim().length > 0;
+    let alreadyWarned = false;
+    try {
+      alreadyWarned = localStorage.getItem(FAST_PASTE_WARNING_KEY) !== null;
+    } catch {
+      /* private mode — считаем что не предупреждали */
+    }
+    if (hasExisting && !alreadyWarned) {
+      const ok = await showConfirmModal({
+        title: 'Заменить весь текст?',
+        body:
+          'Кнопка вставит содержимое буфера вместо текущего сценария. ' +
+          'Старый текст исчезнет. Это сообщение появится только один раз — ' +
+          'дальше будет молча.',
+        confirmLabel: 'Заменить',
+        cancelLabel: 'Отмена',
+      });
+      if (!ok) return;
+      try {
+        localStorage.setItem(FAST_PASTE_WARNING_KEY, '1');
+      } catch {
+        /* private mode — в следующий раз спросим ещё раз */
+      }
+    }
+
+    // Останавливаем всё: движок, плавный скролл, микрофон. Старые токены
+    // голосового следования больше не соответствуют тексту — экземпляр
+    // пересоздастся с новым текстом при следующем нажатии Play.
+    pause();
+    disableVoice();
+    engine.stop();
+    scroller.cancel();
+
+    script.body = text;
+    currentLen = text.length;
+    await updateScript(id, { body: text });
+
+    // Пересобираем текст и всё, что зависит от набора слов.
+    textEl.innerHTML = renderBodyWithWords(text);
+    wordElements = textEl.querySelectorAll('.prompter__word');
+    totalWords = wordElements.length;
+    totalSeconds = wpm > 0 ? (totalWords / wpm) * 60 : 0;
+    currentWordEl = null;
+    currentWordIdx = 0;
+
+    // Чтение — в самое начало (как reset): первый абзац на линии чтения.
+    currentSubPixel = 0;
+    applyShiftTransform();
+    viewport.scrollTop = 0;
+    setCurrentWord(0);
+    await clearStoredPosition();
+    updatePadding();
+    updateProgressAndTimer();
+    showControls();
+    showCommandToast('текст обновлён');
+  };
+
   const openPromptSettings = () => {
     openSettings({
       parent: section,
@@ -839,6 +926,9 @@ export async function renderPrompter(root, { id }) {
       e.stopPropagation();
       openPromptSettings();
       showControls();
+    } else if (action === 'paste-replace') {
+      e.stopPropagation();
+      await pasteAndReplace();
     } else if (action === 'voice-error-dismiss') {
       e.stopPropagation();
       hideVoiceErrorOverlay();
@@ -973,13 +1063,28 @@ function renderTemplate(script, settings) {
         <div class="prompter__progress-bar" data-role="progress-bottom"></div>
       </div>
 
-      <div class="prompter__timer" data-role="timer">0:00</div>
+      <div class="prompter__corner prompter__corner--left">
+        <button
+          class="prompter__corner-button"
+          data-action="exit"
+          aria-label="выход"
+        >${ICON_CLOSE}</button>
+        <div class="prompter__timer" data-role="timer">0:00</div>
+      </div>
 
-      <button
-        class="prompter__settings-button"
-        data-action="settings-open"
-        aria-label="настройки"
-      >${ICON_GEAR}</button>
+      <div class="prompter__corner prompter__corner--right">
+        <button
+          class="prompter__corner-button"
+          data-action="paste-replace"
+          aria-label="вставить текст из буфера"
+          title="Заменить текст на содержимое буфера"
+        >${ICON_PASTE}</button>
+        <button
+          class="prompter__corner-button"
+          data-action="settings-open"
+          aria-label="настройки"
+        >${ICON_GEAR}</button>
+      </div>
 
       <div class="prompter__pan-y-group">
         <button
@@ -1001,9 +1106,6 @@ function renderTemplate(script, settings) {
 
       <div class="prompter__controls" data-role="controls">
         <div class="prompter__group prompter__group--utility">
-          <button class="prompter__icon" data-action="exit" aria-label="выход">
-            ${ICON_CLOSE}
-          </button>
           <button
             class="prompter__icon"
             data-action="toggle-mirror"
@@ -1140,6 +1242,14 @@ const ICON_CHEVRON_UP = `
 const ICON_CHEVRON_DOWN = `
   <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none">
     <path d="m6 9 6 6 6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+`;
+
+const ICON_PASTE = `
+  <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none">
+    <rect x="6" y="5" width="12" height="16" rx="2" stroke="currentColor" stroke-width="1.8"/>
+    <rect x="9" y="3" width="6" height="3" rx="1" fill="currentColor"/>
+    <path d="M9 12h6M9 16h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
   </svg>
 `;
 

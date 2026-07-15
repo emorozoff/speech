@@ -50,10 +50,30 @@
   border-radius: 0 1px 1px 0;
 }
 
-.prompter__timer {
+/* Верхние углы: слева «выход» + таймер, справа «из буфера» + «настройки». */
+.prompter__corner {
   position: absolute;
   top: calc(var(--safe-top) + var(--space-2));
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  z-index: 5;
+  transition: opacity var(--duration-base) var(--ease);
+}
+
+.prompter__corner--left {
+  left: max(var(--space-3), var(--safe-left));
+}
+
+.prompter__corner--right {
   right: max(var(--space-3), var(--safe-right));
+}
+
+.prompter--idle .prompter__corner {
+  opacity: 0.45;
+}
+
+.prompter__timer {
   padding: var(--space-1) var(--space-3);
   font-size: var(--fs-sm);
   font-weight: var(--fw-semibold);
@@ -64,19 +84,10 @@
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   border-radius: var(--radius-pill);
-  z-index: 5;
   pointer-events: none;
-  transition: opacity var(--duration-base) var(--ease);
 }
 
-.prompter--idle .prompter__timer {
-  opacity: 0.45;
-}
-
-.prompter__settings-button {
-  position: absolute;
-  top: calc(var(--safe-top) + var(--space-2));
-  left: max(var(--space-3), var(--safe-left));
+.prompter__corner-button {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -87,19 +98,13 @@
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   color: var(--color-fg-dim);
-  z-index: 5;
-  transition: opacity var(--duration-base) var(--ease),
-    color var(--duration-fast) var(--ease),
+  transition: color var(--duration-fast) var(--ease),
     background var(--duration-fast) var(--ease);
 }
 
-.prompter__settings-button:active {
+.prompter__corner-button:active {
   background: rgba(0, 0, 0, 0.78);
   color: var(--color-fg);
-}
-
-.prompter--idle .prompter__settings-button {
-  opacity: 0.45;
 }
 
 .prompter__mirror-wrap {
